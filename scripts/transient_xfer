@@ -1,10 +1,12 @@
 #!/usr/bin/env python2
 
-"""
-transient_xfer - Data transfer script for JCMT transient survey
+from __future__ import absolute_import, division, print_function
+
+program_usage = """
+{0} - Custom data transfer script
 
 Usage:
-    transient_xfer [-v | -q] [-n] --transdir <transdir>
+    {0} [-v | -q] [-n] --transdir <transdir>
 
 Options:
     --help, -h              Show usage information.
@@ -14,8 +16,6 @@ Options:
     --transdir <transdir>   Specify target directory for final products.
 """
 
-from __future__ import absolute_import, division, print_function
-
 import logging
 import os
 import sys
@@ -23,117 +23,139 @@ import sys
 from docopt import docopt
 import vos
 
-logger = logging.getLogger(os.path.basename(sys.argv[0]))
+program_name = os.path.basename(sys.argv[0])
+logger = logging.getLogger(program_name)
 
 
-def main():
-    """
-    Main routine for transient transfer script.
+class CustomJobTransfer(object):
+    def __init__(self, vos_base, program_name='custom_xfer'):
+        """
+        Constructor for custom transfer script class.
+        """
 
-    Handles command line arguments, checks that the transfer directory exists
-    and reads a listing of its contents.
-    """
+        self.vos_base = vos_base
+        self.program_name = program_name
 
-    args = docopt(__doc__)
+    def run(self):
+        """
+        Main routine for transient transfer script.
 
-    # Configure logging.
-    logging.basicConfig(
-        level=logging.DEBUG if args['--verbose'] else (
-            logging.WARNING if args['--quiet'] else logging.INFO))
+        Handles command line arguments, checks that the transfer directory
+        exists and reads a listing of its contents.
+        """
 
-    # Check that the transfer directory exists.
-    logger.debug('Checking transfer directory exists')
-    transdir = args['--transdir']
+        args = docopt(program_usage.format(self.program_name))
 
-    if not os.path.isdir(transdir):
-        logger.error('Specified transdir does not exist (or is a file)')
-        sys.exit(1)
+        # Configure logging.
+        logging.basicConfig(
+            level=logging.DEBUG if args['--verbose'] else (
+                logging.WARNING if args['--quiet'] else logging.INFO))
 
-    # Get transfer directory listing.
-    filenames = []
-    logger.debug('Reading transfer directory listing')
-    for file_ in os.listdir(transdir):
-        if os.path.isfile(os.path.join(transdir, file_)):
-            filenames.append(file_)
-        else:
-            logger.warning(
-                'Transfer directory contains non-file {0}'.format(file_))
+        # Check that the transfer directory exists.
+        logger.debug('Checking transfer directory exists')
+        transdir = args['--transdir']
 
-    # Run the data processing function.
-    logger.debug('About to begin transfer')
-    try:
-        run_transfer(transdir, filenames, dry_run=args['--dry-run'])
+        if not os.path.isdir(transdir):
+            logger.error('Specified transdir does not exist (or is a file)')
+            sys.exit(1)
 
-    except:
-        logger.exception('Exception during transfer')
-        sys.exit(1)
-
-    logger.debug('Transfer complete')
-
-
-def run_transfer(transdir, filenames, dry_run=False):
-    """
-    Function to launch data transfer.
-
-    :param transdir: directory containing files to transfer.
-    :param filenames: list of files to transfer.
-    :param dry_run: specifies dry run mode.
-    """
-
-    vos_base = 'vos:jcmt-variability/EAO'
-
-    if dry_run:
-        vos_client = None
-    else:
-        logger.debug('Constructing VOS client')
-        vos_client = vos.Client()
-        if not vos_client.isdir(vos_base):
-            raise Exception('VOS base directory does not exist (or is file)')
-
-    for file_ in (filenames):
-        # Determine local file information.
-        file_path = os.path.join(transdir, file_)
-
-        # Determine VO space information.
-        vos_sub_dir = determine_vos_directory(transdir, file_)
-        logger.debug(
-            'VOS directory for {0}: {1}'.format(file_path, vos_sub_dir))
-
-        vos_dir = '/'.join([vos_base, vos_sub_dir])
-        vos_file = '/'.join([vos_dir, file_])
-
-        # Perform storage (if not in dry-run mode).
-        if dry_run:
-            logger.info(
-                'Skipped storing {0} as {1} [DRY-RUN]'.format(
-                    file_path, vos_file))
-
-        else:
-            if vos_client.isdir(vos_dir):
-                logger.debug('VOS directory {0} exists'.format(vos_dir))
+        # Get transfer directory listing.
+        filenames = []
+        logger.debug('Reading transfer directory listing')
+        for file_ in os.listdir(transdir):
+            if os.path.isfile(os.path.join(transdir, file_)):
+                filenames.append(file_)
             else:
-                logger.info('Making VOS directory {0}'.format(vos_dir))
-                vos_client.mkdir(vos_dir)
+                logger.warning(
+                    'Transfer directory contains non-file {0}'.format(file_))
 
-            if vos_client.isfile(vos_file):
-                logger.debug('Deleting existing file {0}'.format(vos_file))
-                vos_client.delete(vos_file)
+        # Run the data transfer function.
+        logger.debug('About to begin transfer')
+        try:
+            self.run_transfer(transdir, filenames, dry_run=args['--dry-run'])
 
-            logger.info('Storing {0} as {1}'.format(file_path, vos_file))
-            vos_client.copy(file_path, vos_file)
+        except:
+            logger.exception('Exception during transfer')
+            sys.exit(1)
+
+        logger.debug('Transfer complete')
+
+    def run_transfer(self, transdir, filenames, dry_run=False):
+        """
+        Function to launch data transfer.
+
+        :param transdir: directory containing files to transfer.
+        :param filenames: list of files to transfer.
+        :param dry_run: specifies dry run mode.
+        """
+
+        if dry_run:
+            vos_client = None
+        else:
+            logger.debug('Constructing VOS client')
+            vos_client = vos.Client()
+            if not vos_client.isdir(self.vos_base):
+                raise Exception(
+                    'VOS base directory does not exist (or is file)')
+
+        for file_ in (filenames):
+            # Determine local file information.
+            file_path = os.path.join(transdir, file_)
+
+            # Determine VO space information.
+            vos_sub_dir = self.determine_vos_directory(transdir, file_)
+            logger.debug(
+                'VOS directory for {0}: {1}'.format(file_path, vos_sub_dir))
+
+            vos_dir = '/'.join([self.vos_base, vos_sub_dir])
+            vos_file = '/'.join([vos_dir, file_])
+
+            # Perform storage (if not in dry-run mode).
+            if dry_run:
+                logger.info(
+                    'Skipped storing {0} as {1} [DRY-RUN]'.format(
+                        file_path, vos_file))
+
+            else:
+                if vos_client.isdir(vos_dir):
+                    logger.debug('VOS directory {0} exists'.format(vos_dir))
+                else:
+                    logger.info('Making VOS directory {0}'.format(vos_dir))
+                    vos_client.mkdir(vos_dir)
+
+                if vos_client.isfile(vos_file):
+                    logger.debug('Deleting existing file {0}'.format(vos_file))
+                    vos_client.delete(vos_file)
+
+                logger.info('Storing {0} as {1}'.format(file_path, vos_file))
+                vos_client.copy(file_path, vos_file)
+
+    def determine_vos_directory(self, transdir, filename):
+        # This method must be overridden by subclasses.
+        raise Exception('Custom transfer directory routine not defined')
 
 
-def determine_vos_directory(transdir, filename):
-    """
-    Determine in which subdirectory of our VO-space a given file
-    should be stored.
+class TransientTransfer(CustomJobTransfer):
+    def __init__(self, **kwargs):
+        """
+        Constructor for transient survey transfer script class.
+        """
 
-    :param transdir: directory in which file is located.
-    :param filename: the name of the file.
-    """
+        super(TransientTransfer, self).__init__(
+            vos_base='vos:jcmt-variability/EAO',
+            **kwargs)
 
-    return 'test'
+    def determine_vos_directory(self, transdir, filename):
+        """
+        Determine in which subdirectory of our VO-space a given file
+        should be stored.
+
+        :param transdir: directory in which file is located.
+        :param filename: the name of the file.
+        """
+
+        return 'test'
 
 
 if __name__ == '__main__':
-    main()
+    TransientTransfer(program_name=program_name).run()

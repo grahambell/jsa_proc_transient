@@ -1,10 +1,12 @@
 #!/usr/bin/env python2
 
-"""
-transient_run - Data reduction wrapper script for JCMT transient survey
+from __future__ import absolute_import, division, print_function
+
+program_usage = """
+{0} - Custom data reduction wrapper script
 
 Usage:
-    transient_run [-v | -q] --id <id> --inputs <inputs> --transdir <transdir>
+    {0} [-v | -q] --id <id> --inputs <inputs> --transdir <transdir>
 
 Options:
     --help, -h              Show usage information.
@@ -15,88 +17,101 @@ Options:
     --transdir <transdir>   Specify target directory for final products.
 """
 
-from __future__ import absolute_import, division, print_function
-
 import logging
 import os
 import sys
 
 from docopt import docopt
 
-logger = logging.getLogger(os.path.basename(sys.argv[0]))
+program_name = os.path.basename(sys.argv[0])
+logger = logging.getLogger(program_name)
 
 
-def main():
-    """
-    Main routine for transient processing script.
+class CustomJobRun(object):
+    def __init__(self, program_name='custom_run'):
+        """
+        Constructor for custom processing script class.
+        """
 
-    Handles command line arguments, reads the input file list
-    and checks that the transfer directory exists.
-    """
+        self.program_name = program_name
 
-    args = docopt(__doc__)
+    def run(self):
+        """
+        Main routine for custom processing scripts.
 
-    # Configure logging.
-    logging.basicConfig(
-        level=logging.DEBUG if args['--verbose'] else (
-            logging.WARNING if args['--quiet'] else logging.INFO))
+        Handles command line arguments, reads the input file list
+        and checks that the transfer directory exists.
+        """
 
-    # Read the input file listing.
-    logger.debug('Reading input file list')
-    try:
-        inputs = []
+        args = docopt(program_usage.format(self.program_name))
 
-        with open(args['--inputs']) as f:
-            for file_ in f:
-                file_ = file_.strip()
+        # Configure logging.
+        logging.basicConfig(
+            level=logging.DEBUG if args['--verbose'] else (
+                logging.WARNING if args['--quiet'] else logging.INFO))
 
-                if not file_:
-                    continue
+        # Read the input file listing.
+        logger.debug('Reading input file list')
+        try:
+            inputs = []
 
-                if not os.path.exists(file_):
-                    raise Exception(
-                        'Input file {0} does not exist'.format(file_))
+            with open(args['--inputs']) as f:
+                for file_ in f:
+                    file_ = file_.strip()
 
-                inputs.append(file_)
+                    if not file_:
+                        continue
 
-    except:
-        logger.exception('Exception reading input file listing')
-        sys.exit(1)
+                    if not os.path.exists(file_):
+                        raise Exception(
+                            'Input file {0} does not exist'.format(file_))
 
-    # Check that the transfer directory exists.
-    logger.debug('Checking transfer directory exists')
-    transdir = args['--transdir']
+                    inputs.append(file_)
 
-    if not os.path.isdir(transdir):
-        logger.error('Specified transdir does not exist (or is a file)')
-        sys.exit(1)
+        except:
+            logger.exception('Exception reading input file listing')
+            sys.exit(1)
 
-    # Run the data processing function.
-    logger.debug('About to begin processing')
-    try:
-        run_processing(inputs, transdir, id_=args['--id'])
+        # Check that the transfer directory exists.
+        logger.debug('Checking transfer directory exists')
+        transdir = args['--transdir']
 
-    except:
-        logger.exception('Exception during processing')
-        sys.exit(1)
+        if not os.path.isdir(transdir):
+            logger.error('Specified transdir does not exist (or is a file)')
+            sys.exit(1)
 
-    logger.debug('Processing complete')
+        # Run the data processing function.
+        logger.debug('About to begin processing')
+        try:
+            self.run_processing(inputs, transdir, id_=args['--id'])
+
+        except:
+            logger.exception('Exception during processing')
+            sys.exit(1)
+
+        logger.debug('Processing complete')
+
+    def run_processing(self, inputs, transdir, id_='unknown'):
+        # This method must be overridden by subclasses.
+        raise Exception('Custom processing routine not defined')
 
 
-def run_processing(inputs, transdir, id_='unknown'):
-    """
-    Function to launch data processing.
+class TransientRun(CustomJobRun):
+    def run_processing(self, inputs, transdir, id_='unknown'):
+        """
+        Function to launch data processing.
 
-    :param inputs: list of input file names
-    :param transdir: target output directory
-    """
+        :param inputs: list of input file names
+        :param transdir: target output directory
+        :param id: job identifier
+        """
 
-    logger.info('Writing dummy output file')
-    with open(os.path.join(
-            transdir, 'dummy_output_{}.txt'.format(id_)), 'w') as f:
-        for file_ in enumerate(inputs):
-            print('{0}: {1}'.format(*file_), file=f)
+        logger.info('Writing dummy output file')
+        with open(os.path.join(
+                transdir, 'dummy_output_{}.txt'.format(id_)), 'w') as f:
+            for file_ in enumerate(inputs):
+                print('{0}: {1}'.format(*file_), file=f)
 
 
 if __name__ == '__main__':
-    main()
+    TransientRun(program_name=program_name).run()
