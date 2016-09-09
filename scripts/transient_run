@@ -60,7 +60,7 @@ def main():
                 inputs.append(file_)
 
     except:
-        logging.exception('Exception reading input file listing')
+        logger.exception('Exception reading input file listing')
         sys.exit(1)
 
     # Check that the transfer directory exists.
@@ -68,7 +68,7 @@ def main():
     transdir = args['--transdir']
 
     if not os.path.isdir(transdir):
-        logging.error('Specified transdir does not exist (or is a file)')
+        logger.error('Specified transdir does not exist (or is a file)')
         sys.exit(1)
 
     # Run the data processing function.
@@ -77,7 +77,7 @@ def main():
         run_processing(inputs, transdir, id_=args['--id'])
 
     except:
-        logging.exception('Exception during processing')
+        logger.exception('Exception during processing')
         sys.exit(1)
 
     logger.debug('Processing complete')

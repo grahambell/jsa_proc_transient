@@ -46,7 +46,7 @@ def main():
     transdir = args['--transdir']
 
     if not os.path.isdir(transdir):
-        logging.error('Specified transdir does not exist (or is a file)')
+        logger.error('Specified transdir does not exist (or is a file)')
         sys.exit(1)
 
     # Get transfer directory listing.
@@ -65,7 +65,7 @@ def main():
         run_transfer(transdir, filenames, dry_run=args['--dry-run'])
 
     except:
-        logging.exception('Exception during transfer')
+        logger.exception('Exception during transfer')
         sys.exit(1)
 
     logger.debug('Transfer complete')
