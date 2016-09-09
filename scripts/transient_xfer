@@ -4,12 +4,13 @@
 transient_xfer - Data transfer script for JCMT transient survey
 
 Usage:
-    transient_xfer [-v | -q] --transdir <transdir>
+    transient_xfer [-v | -q] [-n] --transdir <transdir>
 
 Options:
     --help, -h              Show usage information.
     --verbose, -v           Show debugging information.
     --quiet, -q             Do not show general logging information.
+    --dry-run, -n           Skip actual transfer step.
     --transdir <transdir>   Specify target directory for final products.
 """
 
@@ -20,6 +21,7 @@ import os
 import sys
 
 from docopt import docopt
+import vos
 
 logger = logging.getLogger(sys.argv[0])
 
@@ -60,7 +62,7 @@ def main():
     # Run the data processing function.
     logger.debug('About to begin transfer')
     try:
-        run_transfer(transdir, filenames)
+        run_transfer(transdir, filenames, dry_run=args['--dry-run'])
 
     except:
         logging.exception('Exception during transfer')
@@ -69,17 +71,68 @@ def main():
     logger.debug('Transfer complete')
 
 
-def run_transfer(transdir, filenames):
+def run_transfer(transdir, filenames, dry_run=False):
     """
     Function to launch data transfer.
 
-    :param transdir: directory containing files to transfer
-    :param filenames: list of files to transfer
+    :param transdir: directory containing files to transfer.
+    :param filenames: list of files to transfer.
+    :param dry_run: specifies dry run mode.
     """
 
-    logger.info('Transfer directory: {0}'.format(transdir))
-    for file_ in enumerate(filenames):
-        logger.info('File {0}: {1}'.format(*file_))
+    vos_base = 'vos:jcmt-variability/EAO'
+
+    if dry_run:
+        vos_client = None
+    else:
+        logger.debug('Constructing VOS client')
+        vos_client = vos.Client()
+        if not vos_client.isdir(vos_base):
+            raise Exception('VOS base directory does not exist (or is file)')
+
+    for file_ in (filenames):
+        # Determine local file information.
+        file_path = os.path.join(transdir, file_)
+
+        # Determine VO space information.
+        vos_sub_dir = determine_vos_directory(transdir, file_)
+        logger.debug(
+            'VOS directory for {0}: {1}'.format(file_path, vos_sub_dir))
+
+        vos_dir = '/'.join([vos_base, vos_sub_dir])
+        vos_file = '/'.join([vos_dir, file_])
+
+        # Perform storage (if not in dry-run mode).
+        if dry_run:
+            logger.info(
+                'Skipped storing {0} as {1} [DRY-RUN]'.format(
+                    file_path, vos_file))
+
+        else:
+            if vos_client.isdir(vos_dir):
+                logger.debug('VOS directory {0} exists'.format(vos_dir))
+            else:
+                logger.info('Making VOS directory {0}'.format(vos_dir))
+                vos_client.mkdir(vos_dir)
+
+            if vos_client.isfile(vos_file):
+                logger.debug('Deleting existing file {0}'.format(vos_file))
+                vos_client.delete(vos_file)
+
+            logger.info('Storing {0} as {1}'.format(file_path, vos_file))
+            vos_client.copy(file_path, vos_file)
+
+
+def determine_vos_directory(transdir, filename):
+    """
+    Determine in which subdirectory of our VO-space a given file
+    should be stored.
+
+    :param transdir: directory in which file is located.
+    :param filename: the name of the file.
+    """
+
+    return 'test'
 
 
 if __name__ == '__main__':
