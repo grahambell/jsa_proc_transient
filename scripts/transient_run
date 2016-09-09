@@ -10,6 +10,7 @@ Options:
     --help, -h              Show usage information.
     --verbose, -v           Show debugging information.
     --quiet, -q             Do not show general logging information.
+    --id <id>               Job identifier.
     --inputs <inputs>       Specify file giving input file listing.
     --transdir <transdir>   Specify target directory for final products.
 """
@@ -73,7 +74,7 @@ def main():
     # Run the data processing function.
     logger.debug('About to begin processing')
     try:
-        run_processing(inputs, transdir)
+        run_processing(inputs, transdir, id_=args['--id'])
 
     except:
         logging.exception('Exception during processing')
@@ -82,7 +83,7 @@ def main():
     logger.debug('Processing complete')
 
 
-def run_processing(inputs, transdir):
+def run_processing(inputs, transdir, id_='unknown'):
     """
     Function to launch data processing.
 
@@ -91,7 +92,8 @@ def run_processing(inputs, transdir):
     """
 
     logger.info('Writing dummy output file')
-    with open(os.path.join(transdir, 'dummy_output.txt'), 'w') as f:
+    with open(os.path.join(
+            transdir, 'dummy_output_{}.txt'.format(id_)), 'w') as f:
         for file_ in enumerate(inputs):
             print('{0}: {1}'.format(*file_), file=f)
 
