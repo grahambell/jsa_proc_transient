@@ -1,0 +1,86 @@
+#!/usr/bin/env starperl
+
+use JAC::Setup qw/omp sybase/;
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+use File::Basename;
+
+use JSA::Submission qw/
+    %BAD_OBSIDSS %JUNK_OBSIDSS
+    echo_messages find_observations
+    log_message prepare_archive_db write_log_file/;
+use JSA::Proc qw/add_jsa_proc_jobs create_obsinfo_hash/;
+use OMP::Info::Obs;
+use OMP::Constants qw/:obs/;
+
+my ($ut, $dry_run);
+die 'Could not process command line options'
+    unless GetOptions(
+        'dry-run'   => \$dry_run,
+        'ut=s'      => \$ut,
+    );
+
+my $project = 'M16AL001';
+my $priority = 100;
+my $task = 'lap-transient';
+my $only_info = 0;
+my $drparams = '';
+
+die 'UT date not specified' unless defined $ut;
+
+echo_messages(1);
+
+prepare_archive_db();
+
+my ($mode, $grp) = find_observations(
+    $ut, $project, $priority, 'transient_submit');
+
+if (scalar(@{$grp->obs}) == 0) {
+    log_message("No observations were retrieved from the database.\n");
+}
+else {
+    log_message(scalar(@{$grp->obs}) .
+                " observations were retrieved from the database.\n\n");
+
+    my %groups;
+
+    foreach my $obs ($grp->obs) {
+        next if $obs->status == OMP__OBS_JUNK;
+
+        my @subsystems = $obs->subsystems;
+
+        for my $subsys (@subsystems) {
+            my @all_obsidss = $subsys->obsidss;
+            my $obsidss = $all_obsidss[0];
+
+            die "Error determining an OBSIDSS for an observation"
+                unless defined $obsidss;
+
+            next if exists $JUNK_OBSIDSS{$obsidss};
+
+            my $subsyshdr = $subsys->hdrhash();
+
+            my $tag = $task . "-" . $subsys->obsid
+                            . "-" . $subsyshdr->{FILTER};
+
+            my $obsinfo = create_obsinfo_hash($obs, $subsyshdr);
+            $obsinfo->{'association'} = $tag;
+
+            $groups{$tag} = {
+                mode => 'obs',
+                task => $task,
+                drparams => $drparams,
+                files => [map {basename($_)} $subsys->filename()],
+                obsinfolist => [$obsinfo],
+            };
+
+        }
+    }
+
+    add_jsa_proc_jobs(\%groups, 'obs', $priority, $only_info, $dry_run);
+}
+
+exit;
