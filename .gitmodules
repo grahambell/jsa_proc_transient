@@ -1,0 +1,3 @@
+[submodule "ext/transientclumps"]
+	path = ext/transientclumps
+	url = git://github.com/jamesmlane/transientclumps.git
