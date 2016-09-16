@@ -3,9 +3,9 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 
-from TCOffsetFunctions import source_match
-from TCGaussclumpsFunctions import run_gaussclumps
-from TCPrepFunctions import prepare_image
+from transientclumps.TCOffsetFunctions import source_match
+from transientclumps.TCGaussclumpsFunctions import run_gaussclumps
+from transientclumps.TCPrepFunctions import prepare_image
 
 # Look up information -- this needs full paths possibbly.
 # This should probably be replaced by a better config system?
