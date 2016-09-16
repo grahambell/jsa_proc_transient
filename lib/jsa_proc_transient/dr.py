@@ -1,8 +1,8 @@
-from starlink import kappa, cupid, smurf
 import os
 import logging
 import re
 logging.basicConfig(level=logging.DEBUG)
+import subprocess
 import sys
 import tempfile
 
@@ -96,11 +96,17 @@ def transient_analysis(inputfiles, reductiontype):
     filelist.file.close()
 
     # run makemap
-    makemapres = smurf.makemap(in_='^' + filelist.name,
-                               config='^' + dimmconfig,
-                               out=out,
-                               ref=reference,
-                               mask2=mask2)
+    subprocess.check_call(
+        [
+            os.path.expandvars('$SMURF_DIR/makemap'),
+            'in=^{}'.format(filelist.name),
+            'config=^{}'.format(dimmconfig),
+            'out={}'.format(out),
+            'ref={}'.format(reference),
+            'mask2={}'.format(mask2),
+            'msg_filter=none',
+        ],
+        shell=False)
 
     if not os.path.exists(out):
         raise Exception('MAKEMAP did not generate output "{}"'.format(out))
@@ -134,13 +140,19 @@ def transient_analysis(inputfiles, reductiontype):
     # Re reduce map with pointing offset.
     out_a = get_filename_output(
         source, date, obsnum, filter_, reductiontype, True)
-    makemapres2 = smurf.makemap(in_='^' + filelist.name,
-                                config='^' + dimmconfig,
-                                out=out,
-                                out=out_a,
-                                ref=reference,
-                                mask2=mask2,
-                                pointing=offsetsfile)
+
+    subprocess.check_call(
+        [
+            os.path.expandvars('$SMURF_DIR/makemap'),
+            'in=^{}'.format(filelist.name),
+            'config=^{}'.format(dimmconfig),
+            'out={}'.format(out_a),
+            'ref={}'.format(reference),
+            'mask2={}'.format(mask2),
+            'pointing={}'.format(offsetsfile),
+            'msg_filter=none',
+        ],
+        shell=False)
 
     if not os.path.exists(out_a):
         raise Exception('MAKEMAP did not generate output "{}"'.format(out_a))
