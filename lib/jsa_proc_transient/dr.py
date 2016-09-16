@@ -1,4 +1,5 @@
 from starlink import kappa, cupid, smurf
+import os
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -32,10 +33,10 @@ maskdict = {
 
 
 dimmconfigdict = {
-    'R1': r1dimmconfig,
-    'R2': r2dimmconfig,
-    'R3': r3dimmconfig,
-    'R4': r4dimmconfig,
+    'R1': '$ORAC_CAL_ROOT/scuba2/dimmconfig_M16AL001_R1.lis',
+    'R2': '$ORAC_CAL_ROOT/scuba2/dimmconfig_M16AL001_R2.lis',
+    'R3': '$ORAC_CAL_ROOT/scuba2/dimmconfig_M16AL001_R3.lis',
+    'R4': '$ORAC_CAL_ROOT/scuba2/dimmconfig_M16AL001_R4.lis',
 }
 
 outputfile1 = '{}_{}_{:05d}_8{}_pW_nopointcorr.sdf'
@@ -70,7 +71,7 @@ def transient_analysis(inputfiles, reductiontype):
     obsnum = res.value
 
     # Get dimmconfig, reference and masks.
-    dimmconfig = dimmconfigdict[reductiontype]
+    dimmconfig = os.path.expandvars(dimmconfigdict[reductiontype])
     mask2 = maskdict[source][reductiontype]
     reference = refdict[source]
     refcat = refcatdict[source]
