@@ -128,10 +128,9 @@ def transient_analysis(inputfiles, reductiontype):
 
 def create_pointing_offsets(x, y, system='TRACKING'):
     offsetfile = 'pointing_offset.txt'
-    f = open(offsetfile, 'w')
-    f.write('# SYSTEM={}\n'.format(system))
-    f.write('#TAI DLON DLAT\n')
-    f.write('1 {} {}\n'.format(x, y))
-    f.write('10000000 {} {}\n'.format(x, y))
-    f.close()
+    with open(offsetfile, 'w') as f:
+        f.write('# SYSTEM={}\n'.format(system))
+        f.write('#TAI DLON DLAT\n')
+        f.write('1 {} {}\n'.format(x, y))
+        f.write('10000000 {} {}\n'.format(x, y))
     return offsetfile
