@@ -1,8 +1,11 @@
 from starlink import kappa, cupid, smurf
 import os
 import logging
+import re
 logging.basicConfig(level=logging.DEBUG)
 
+from astropy.io import fits
+from starlink.ndfpack import Ndf
 
 from transientclumps.TCOffsetFunctions import source_match
 from transientclumps.TCGaussclumpsFunctions import run_gaussclumps
@@ -60,15 +63,10 @@ def transient_analysis(inputfiles, reductiontype):
     """
 
     # Get source, utdate and obsnum.
-    # TODO: switch this to use starlink.ndf (more efficient).
-    res = kappa.fitsval(ndf=inputfiles[0], keyword='OBJECT')
-    source = res.value
-
-    res = kappa.fitsval(ndf=inputfiles[0], keyword='UTDATE')
-    date = res.value
-
-    res = kappa.fitsval(ndf=inputfiles[0], keyword='OBSNUM')
-    obsnum = res.value
+    header = fits.Header.fromstring(''.join(Ndf(inputfiles[0]).head['FITS']))
+    source = safe_object_name(header['OBJECT'])
+    date = header['UTDATE']
+    obsnum = header['OBSNUM']
 
     # Get dimmconfig, reference and masks.
     dimmconfig = os.path.expandvars(dimmconfigdict[reductiontype])
@@ -139,3 +137,19 @@ def create_pointing_offsets(x, y, system='TRACKING'):
         f.write('1 {} {}\n'.format(x, y))
         f.write('10000000 {} {}\n'.format(x, y))
     return offsetfile
+
+
+def safe_object_name(name):
+    """
+    Make safe version of an object name for use in the construction of
+    file names, attempting to follow the scheme used by the survey.
+    """
+
+    # Remove spaces before numbers.
+    name = re.sub(' +(?=[0-9])', '', name)
+
+    # Remove unexpected characters.
+    name = re.sub('[^-_A-Za-z0-9]', '_', name)
+
+    # Return in upper case.
+    return name.upper()
