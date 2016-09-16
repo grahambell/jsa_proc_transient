@@ -108,7 +108,7 @@ def transient_analysis(inputfiles, reductiontype):
 
     # Re reduce map with pointing offset.
     out = outputfile2.format(source, date, obsnum, reductiontype)
-    makemapres2 = smurf.makemap(in'^' + filelist.name,
+    makemapres2 = smurf.makemap(in_='^' + filelist.name,
                                 config='^' + dimmconfig,
                                 out=out,
                                 ref=reference,
