@@ -39,6 +39,13 @@ param_file = os.path.join(config_dir, 'data', 'parameters', 'GCParms.txt')
 kernel = os.path.join(config_dir, 'data', 'kernels', 'TCgauss_6.sdf')
 
 
+def transient_analysis_all(inputfiles):
+    outputfiles = []
+
+    for type_ in sorted(dimmconfigdict.keys()):
+        outputfiles.extend(transient_analysis(inputfiles, type_))
+
+    return outputfiles
 
 
 def transient_analysis(inputfiles, reductiontype):
@@ -46,10 +53,7 @@ def transient_analysis(inputfiles, reductiontype):
     Take in a list of input files from a single observation and
     the reduction type (e.g. 'R1', 'R2' etc).
 
-    Returns the filename of the reduced maps (with and without
-    pointing corrections) and the output source catalog (after
-    pointing corrections).
-
+    Returns a list of output files.
     """
 
     if not os.path.exists(param_file):
@@ -169,7 +173,7 @@ def transient_analysis(inputfiles, reductiontype):
         raise Exception(
             'CUPID did not generate catalog "{}"'.format(sourcecatalog_a))
 
-    return out_a, sourcecatalog
+    return [out, sourcecatalog, out_a, sourcecatalog_a]
 
 
 def create_pointing_offsets(x, y, system='TRACKING'):

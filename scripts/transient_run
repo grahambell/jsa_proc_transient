@@ -4,9 +4,15 @@ from __future__ import absolute_import, division, print_function
 
 import logging
 import os
+import shutil
 import sys
 
+# Add relative library directory to path.
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.dirname(sys.argv[0])), 'lib'))
+
 from jsa_proc.custom.run import CustomJobRun
+from jsa_proc_transient.dr import transient_analysis_all
 
 
 program_name = os.path.basename(sys.argv[0])
@@ -23,11 +29,22 @@ class TransientRun(CustomJobRun):
         :param id: job identifier
         """
 
-        logger.info('Writing dummy output file')
-        with open(os.path.join(
-                transdir, 'dummy_output_{}.txt'.format(id_)), 'w') as f:
-            for file_ in enumerate(inputs):
-                print('{0}: {1}'.format(*file_), file=f)
+        outputs = transient_analysis_all(inputs)
+
+        for filename in outputs:
+            if filename.endswith('.sdf'):
+                logger.info('Storing SDF file "%s"', filename)
+                shutil.copy(filename, transdir)
+
+            elif filename.endswith('.FIT'):
+                filename_edited = filename[:-4] + '.fits'
+                logger.info('Storing FITS file "%s" as "%s"',
+                            filename, filename_edited)
+                shutil.copyfile(
+                    filename, os.path.join(transdir, filename_edited))
+
+            else:
+                raise Exception('Unexpected output file "{}"'.format(filename))
 
 
 if __name__ == '__main__':
