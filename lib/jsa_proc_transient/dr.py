@@ -46,6 +46,7 @@ param_file = 'the parameter file?'
 kernel = 'kernel.sdf'
 kernel_fwhm = 5.0
 
+
 def transient_analysis(inputfiles, reductiontype):
     """
     Take in a list of input files from a single 850um observation and
@@ -78,7 +79,8 @@ def transient_analysis(inputfiles, reductiontype):
     out = outputfile1.format(source, date, obsnum, reductiontype)
 
     # Create list of input files
-    filelist = tempfile.NamedTemporaryFile(mode='w', prefix='tmpList', delete=False)
+    filelist = tempfile.NamedTemporaryFile(
+        mode='w', prefix='tmpList', delete=False)
     filelist.file.writelines([i + '\n' for i in inputfiles])
     filelist.file.close()
 
@@ -89,7 +91,8 @@ def transient_analysis(inputfiles, reductiontype):
                                ref=reference,
                                mask2=mask2)
 
-    # Prepare the image (smoothing etc) by running J. Lane's prepare image routine.
+    # Prepare the image (smoothing etc) by running J. Lane's
+    # prepare image routine.
     prepare_image(out, kernel, kernel_fwhm)
     prepared_file = out[:-4]+'_smooth_jybpm.sdf'
 
@@ -97,9 +100,10 @@ def transient_analysis(inputfiles, reductiontype):
     run_gaussclumps(prepared_file, param_file)
     sourcecatalog = prepared_file[:-4] + '_log.FIT'
 
-
     # Calculate offsets with J. Lane's source_match
-    results = source_match(sourcecatalog, refcat, minpeak=0.2, maxrad=30, maxsep=10, cutoff=4, pix_scale=3.0)
+    results = source_match(
+        sourcecatalog, refcat, minpeak=0.2, maxrad=30, maxsep=10,
+        cutoff=4, pix_scale=3.0)
     xoffset = results[0][1]
     yoffset = results[0][2]
 
