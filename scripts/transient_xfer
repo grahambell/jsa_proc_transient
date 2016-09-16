@@ -4,6 +4,7 @@ from __future__ import absolute_import, division, print_function
 
 import logging
 import os
+import re
 import sys
 
 from jsa_proc.custom.transfer import CustomJobTransfer
@@ -32,7 +33,14 @@ class TransientTransfer(CustomJobTransfer):
         :param filename: the name of the file.
         """
 
-        return 'test'
+        m = re.match('^([-_A-Z0-9]+)_[0-9]{8}_[0-9]{5}_', filename)
+
+        if not m:
+            raise Exception(
+                'Could not extract source name '
+                'from file name "{}"'.format(filename))
+
+        return m.group(1)
 
 
 if __name__ == '__main__':
