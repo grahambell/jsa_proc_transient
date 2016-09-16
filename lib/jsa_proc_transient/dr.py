@@ -79,6 +79,20 @@ def transient_analysis(inputfiles, reductiontype):
     logger.info('Performing %sum %s reduction for %s on %s (observation %i)',
                 filter_, reductiontype, source, date, obsnum)
 
+    # Set wavelength-dependent parameters up.
+    if filter_ == '850':
+        beam_fwhm = 14.5
+        fcf_arcsec = 2.34
+    else:
+        raise Exception('Wavelength "{}" not recognised'.format(filter_))
+    jypbm_conv = fcf_arcsec * 1.133 * (beam_fwhm ** 2.0)
+    prepare_kwargs = {
+        'kern_name': kernel,
+        'kern_fwhm': kernel_fwhm,
+        'jypbm_conv': jypbm_conv,
+        'beam_fwhm': beam_fwhm,
+    }
+
     # Get dimmconfig, reference and masks.
     logger.debug('Identifying dimmconfig, mask and reference files')
     dimmconfig = os.path.expandvars(dimmconfigdict[reductiontype])
@@ -129,7 +143,7 @@ def transient_analysis(inputfiles, reductiontype):
     # Prepare the image (smoothing etc) by running J. Lane's
     # prepare image routine.
     logger.debug('Preparing image')
-    prepare_image(out, kernel, kernel_fwhm)
+    prepare_image(out, **prepare_kwargs)
     prepared_file = out[:-4]+'_crop_smooth_jypbm.sdf'
 
     # Identify the sources run J. Lane's run_gaussclumps routine.
@@ -178,7 +192,7 @@ def transient_analysis(inputfiles, reductiontype):
 
     # Re run Lane's smoothing and gauss clumps routine.
     logger.debug('Preparing image')
-    prepare_image(out_a)
+    prepare_image(out_a, **prepare_kwargs)
     prepared_file = out_a[:-4]+'_crop_smooth_jypbm.sdf'
 
     # Identify the sources run J. Lane's run_gaussclumps routine.
