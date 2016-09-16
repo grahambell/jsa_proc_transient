@@ -17,12 +17,11 @@ logger = logging.getLogger(__name__)
 
 data_dir = '/net/kamaka/export/data/jsa_proc/data/M16AL001'
 
-# Dictionary of whether to supply 'mask2' values, by run name.
+# Dictionary of which mask to supply as 'mask2' values, by run name.
+# If a reduction is not listed here, it does not use an external mask.
 maskdict = {
-    'R1': False,
-    'R2': False,
-    'R3': True,
-    'R4': True,
+    'R3': 'R1',
+    'R4': 'R2',
 }
 
 # Dictionary of dimmconfig files, by run name.
@@ -100,8 +99,9 @@ def transient_analysis(inputfiles, reductiontype):
         raise Exception('Dimmconfig file "{}" not found'.format(dimmconfig))
 
     mask2 = '!'
-    if maskdict[reductiontype]:
-        mask2 = get_filename_mask(source, reductiontype)
+    mask_reductiontype = maskdict.get(reductiontype)
+    if mask_reductiontype is not None:
+        mask2 = get_filename_mask(source, mask_reductiontype)
         if not os.path.exists(mask2):
             raise Exception('Mask file "{}" not found'.format(mask2))
 
