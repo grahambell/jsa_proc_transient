@@ -1,3 +1,4 @@
+from codecs import ascii_decode
 import os
 import logging
 import re
@@ -68,7 +69,8 @@ def transient_analysis(inputfiles, reductiontype):
 
     # Get source, utdate, obsnum and fiter.
     logger.debug('Reading header from file "%s"', inputfiles[0])
-    header = fits.Header.fromstring(''.join(Ndf(inputfiles[0]).head['FITS']))
+    header = fits.Header.fromstring(''.join(
+        ascii_decode(x)[0] for x in Ndf(inputfiles[0]).head['FITS']))
     source = safe_object_name(header['OBJECT'])
     date = header['UTDATE']
     obsnum = header['OBSNUM']
