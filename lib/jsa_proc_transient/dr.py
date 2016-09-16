@@ -1,7 +1,6 @@
 import os
 import logging
 import re
-logging.basicConfig(level=logging.DEBUG)
 import subprocess
 import sys
 import tempfile
@@ -12,6 +11,8 @@ from starlink.ndfpack import Ndf
 from transientclumps.TCOffsetFunctions import source_match
 from transientclumps.TCGaussclumpsFunctions import run_gaussclumps
 from transientclumps.TCPrepFunctions import prepare_image
+
+logger = logging.getLogger(__name__)
 
 data_dir = '/net/kamaka/export/data/jsa_proc/data/M16AL001'
 
@@ -56,21 +57,28 @@ def transient_analysis(inputfiles, reductiontype):
     Returns a list of output files.
     """
 
+    logger.debug('Checking configuration file "%s" exists', param_file)
     if not os.path.exists(param_file):
         raise Exception('Configuration file "{}" not found'.format(param_file))
 
+    logger.debug('Checking kernel file "%s" exists', kernel)
     if not os.path.exists(kernel):
         raise Exception('Kernel file "{}" not found'.format(kernel))
     kernel_fwhm = float(kernel[:-4].split('_')[-1])
 
     # Get source, utdate, obsnum and fiter.
+    logger.debug('Reading header from file "%s"', inputfiles[0])
     header = fits.Header.fromstring(''.join(Ndf(inputfiles[0]).head['FITS']))
     source = safe_object_name(header['OBJECT'])
     date = header['UTDATE']
     obsnum = header['OBSNUM']
     filter_ = header['FILTER']
 
+    logger.info('Performing %sum %s reduction for %s on %s (observation %i)',
+                filter_, reductiontype, source, date, obsnum)
+
     # Get dimmconfig, reference and masks.
+    logger.debug('Identifying dimmconfig, mask and reference files')
     dimmconfig = os.path.expandvars(dimmconfigdict[reductiontype])
     if not os.path.exists(dimmconfig):
         raise Exception('Dimmconfig file "{}" not found'.format(dimmconfig))
@@ -100,6 +108,7 @@ def transient_analysis(inputfiles, reductiontype):
     filelist.file.close()
 
     # run makemap
+    logger.debug('Running MAKEMAP, output: "%s"', out)
     subprocess.check_call(
         [
             os.path.expandvars('$SMURF_DIR/makemap'),
@@ -117,10 +126,12 @@ def transient_analysis(inputfiles, reductiontype):
 
     # Prepare the image (smoothing etc) by running J. Lane's
     # prepare image routine.
+    logger.debug('Preparing image')
     prepare_image(out, kernel, kernel_fwhm)
     prepared_file = out[:-4]+'_crop_smooth_jypbm.sdf'
 
     # Identify the sources run J. Lane's run_gaussclumps routine.
+    logger.debug('Running CUPID')
     run_gaussclumps(prepared_file, param_file)
     sourcecatalog = prepared_file[:-4] + '_log.FIT'
 
@@ -129,6 +140,7 @@ def transient_analysis(inputfiles, reductiontype):
             'CUPID did not generate catalog "{}"'.format(sourcecatalog))
 
     # Calculate offsets with J. Lane's source_match
+    logger.debug('Performing source match')
     results = source_match(
         sourcecatalog, refcat, minpeak=0.2, maxrad=30, maxsep=10,
         cutoff=4, pix_scale=3.0)
@@ -145,6 +157,7 @@ def transient_analysis(inputfiles, reductiontype):
     out_a = get_filename_output(
         source, date, obsnum, filter_, reductiontype, True)
 
+    logger.debug('Running MAKEMAP, output: "%s"', out_a)
     subprocess.check_call(
         [
             os.path.expandvars('$SMURF_DIR/makemap'),
@@ -162,10 +175,12 @@ def transient_analysis(inputfiles, reductiontype):
         raise Exception('MAKEMAP did not generate output "{}"'.format(out_a))
 
     # Re run Lane's smoothing and gauss clumps routine.
+    logger.debug('Preparing image')
     prepare_image(out_a)
     prepared_file = out_a[:-4]+'_crop_smooth_jypbm.sdf'
 
     # Identify the sources run J. Lane's run_gaussclumps routine.
+    logger.debug('Running CUPID')
     run_gaussclumps(prepared_file, param_file)
     sourcecatalog_a = prepared_file[:-4] + '_log.FIT'
 
