@@ -43,7 +43,7 @@ kernel = os.path.join(config_dir, 'data', 'kernels', 'TCgauss_6.sdf')
 def transient_analysis_all(inputfiles):
     outputfiles = []
 
-    for type_ in sorted(dimmconfigdict.keys()):
+    for type_ in ['R1', 'R2']:
         outputfiles.extend(transient_analysis(inputfiles, type_))
 
     return outputfiles
