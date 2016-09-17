@@ -62,6 +62,7 @@ def transient_analysis(inputfiles, reductiontype):
     logger.debug('Checking configuration file "%s" exists', param_file)
     if not os.path.exists(param_file):
         raise Exception('Configuration file "{}" not found'.format(param_file))
+    param_file_copy = shutil.copy(param_file, '.')
 
     logger.debug('Checking kernel file "%s" exists', kernel)
     if not os.path.exists(kernel):
@@ -94,14 +95,17 @@ def transient_analysis(inputfiles, reductiontype):
         mask2 = get_filename_mask(source, mask_reductiontype)
         if not os.path.exists(mask2):
             raise Exception('Mask file "{}" not found'.format(mask2))
+        mask2 = shutil.copy(mask2, '.')
 
     reference = get_filename_reference(source, filter_)
     if not os.path.exists(reference):
         raise Exception('Reference file "{}" not found'.format(reference))
+    reference = shutil.copy(reference, '.')
 
     refcat = get_filename_ref_cat(source, filter_)
     if not os.path.exists(refcat):
         raise Exception('Reference catalog "{}" not found'.format(refcat))
+    refcat = shutil.copy(refcat, '.')
 
     # Create output file name.
     out = get_filename_output(
@@ -138,7 +142,7 @@ def transient_analysis(inputfiles, reductiontype):
 
     # Identify the sources run J. Lane's run_gaussclumps routine.
     logger.debug('Running CUPID')
-    run_gaussclumps(prepared_file, param_file)
+    run_gaussclumps(prepared_file, param_file_copy)
     sourcecatalog = prepared_file[:-4] + '_log.FIT'
 
     if not os.path.exists(sourcecatalog):
@@ -188,7 +192,7 @@ def transient_analysis(inputfiles, reductiontype):
 
     # Identify the sources run J. Lane's run_gaussclumps routine.
     logger.debug('Running CUPID')
-    run_gaussclumps(prepared_file, param_file)
+    run_gaussclumps(prepared_file, param_file_copy)
     sourcecatalog_a = prepared_file[:-4] + '_log.FIT'
 
     if not os.path.exists(sourcecatalog_a):
@@ -212,6 +216,7 @@ def create_reference_catalog(source, filter_):
 
     if not os.path.exists(param_file):
         raise Exception('Configuration file "{}" not found'.format(param_file))
+    param_file_copy = shutil.copy(param_file, '.')
 
     if not os.path.exists(kernel):
         raise Exception('Kernel file "{}" not found'.format(kernel))
@@ -229,7 +234,7 @@ def create_reference_catalog(source, filter_):
 
     # Identify the sources run J. Lane's run_gaussclumps routine.
     logger.debug('Running CUPID')
-    run_gaussclumps(prepared_file, param_file)
+    run_gaussclumps(prepared_file, param_file_copy)
     sourcecatalog = prepared_file[:-4] + '_log.FIT'
 
     if not os.path.exists(sourcecatalog):
@@ -248,8 +253,10 @@ def get_prepare_parameters(filter_):
         raise Exception('Wavelength "{}" not recognised'.format(filter_))
     jypbm_conv = fcf_arcsec * 1.133 * (beam_fwhm ** 2.0)
 
+    kernel_copy = shutil.copy(kernel, '.')
+
     return {
-        'kern_name': kernel,
+        'kern_name': kernel_copy,
         'kern_fwhm': kernel_fwhm,
         'jypbm_conv': jypbm_conv,
         'beam_fwhm': beam_fwhm,
