@@ -2,6 +2,7 @@ from codecs import ascii_decode
 import os
 import logging
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -38,6 +39,7 @@ config_dir = os.path.dirname(sys.modules['transientclumps'].__file__)
 param_file = os.path.join(config_dir, 'data', 'parameters', 'GCParms.txt')
 
 kernel = os.path.join(config_dir, 'data', 'kernels', 'TCgauss_6.sdf')
+kernel_fwhm = float(kernel[:-4].split('_')[-1])
 
 
 def transient_analysis_all(inputfiles):
@@ -64,7 +66,6 @@ def transient_analysis(inputfiles, reductiontype):
     logger.debug('Checking kernel file "%s" exists', kernel)
     if not os.path.exists(kernel):
         raise Exception('Kernel file "{}" not found'.format(kernel))
-    kernel_fwhm = float(kernel[:-4].split('_')[-1])
 
     # Get source, utdate, obsnum and fiter.
     logger.debug('Reading header from file "%s"', inputfiles[0])
@@ -79,18 +80,7 @@ def transient_analysis(inputfiles, reductiontype):
                 filter_, reductiontype, source, date, obsnum)
 
     # Set wavelength-dependent parameters up.
-    if filter_ == '850':
-        beam_fwhm = 14.5
-        fcf_arcsec = 2.34
-    else:
-        raise Exception('Wavelength "{}" not recognised'.format(filter_))
-    jypbm_conv = fcf_arcsec * 1.133 * (beam_fwhm ** 2.0)
-    prepare_kwargs = {
-        'kern_name': kernel,
-        'kern_fwhm': kernel_fwhm,
-        'jypbm_conv': jypbm_conv,
-        'beam_fwhm': beam_fwhm,
-    }
+    prepare_kwargs = get_prepare_parameters(filter_)
 
     # Get dimmconfig, reference and masks.
     logger.debug('Identifying dimmconfig, mask and reference files')
@@ -208,6 +198,64 @@ def transient_analysis(inputfiles, reductiontype):
     return [out, sourcecatalog, out_a, sourcecatalog_a, offsetsfile]
 
 
+def create_reference_catalog(source, filter_):
+    ref_cat_path = get_filename_ref_cat(source, filter_)
+    ref_map_path = get_filename_reference(source, filter_)
+
+    if os.path.exists(ref_cat_path):
+        raise Exception(
+            'Reference catalog "{}" already exists'.format(ref_cat_path))
+
+    if not os.path.exists(ref_map_path):
+        raise Exception(
+            'Reference file "{}" not found'.format(ref_map_path))
+
+    if not os.path.exists(param_file):
+        raise Exception('Configuration file "{}" not found'.format(param_file))
+
+    if not os.path.exists(kernel):
+        raise Exception('Kernel file "{}" not found'.format(kernel))
+
+    prepare_kwargs = get_prepare_parameters(filter_)
+
+    ref_map = os.path.basename(ref_map_path)
+    shutil.copyfile(ref_map_path, ref_map)
+
+    # Prepare the image (smoothing etc) by running J. Lane's
+    # prepare image routine.
+    logger.debug('Preparing reference image')
+    prepare_image(ref_map, **prepare_kwargs)
+    prepared_file = ref_map[:-4] + '_crop_smooth_jypbm.sdf'
+
+    # Identify the sources run J. Lane's run_gaussclumps routine.
+    logger.debug('Running CUPID')
+    run_gaussclumps(prepared_file, param_file)
+    sourcecatalog = prepared_file[:-4] + '_log.FIT'
+
+    if not os.path.exists(sourcecatalog):
+        raise Exception(
+            'CUPID did not generate catalog "{}"'.format(sourcecatalog))
+
+    # Install the reference catalog.
+    shutil.copyfile(sourcecatalog, ref_cat_path)
+
+
+def get_prepare_parameters(filter_):
+    if filter_ == '850':
+        beam_fwhm = 14.5
+        fcf_arcsec = 2.34
+    else:
+        raise Exception('Wavelength "{}" not recognised'.format(filter_))
+    jypbm_conv = fcf_arcsec * 1.133 * (beam_fwhm ** 2.0)
+
+    return {
+        'kern_name': kernel,
+        'kern_fwhm': kernel_fwhm,
+        'jypbm_conv': jypbm_conv,
+        'beam_fwhm': beam_fwhm,
+    }
+
+
 def create_pointing_offsets(offsetfile, x, y, system='TRACKING'):
     with open(offsetfile, 'w') as f:
         f.write('# SYSTEM={}\n'.format(system))
@@ -227,6 +275,9 @@ def safe_object_name(name):
 
     # Remove unexpected characters.
     name = re.sub('[^-_A-Za-z0-9]', '_', name)
+
+    # Adjust name of OMC2-3.
+    name = re.sub('OMC2-3', 'OMC23', name)
 
     # Return in upper case.
     return name.upper()
