@@ -5,6 +5,7 @@ from __future__ import absolute_import, division, print_function
 import logging
 import os
 import shutil
+import re
 import sys
 
 # Add relative library directory to path.
@@ -32,12 +33,18 @@ class TransientRun(CustomJobRun):
         outputs = transient_analysis_all(inputs)
 
         for filename in outputs:
-            if filename.endswith('.sdf'):
+            (base_name, extension) = os.path.splitext(filename)
+
+            if extension == '.sdf':
                 logger.info('Storing SDF file "%s"', filename)
                 shutil.copy(filename, transdir)
 
-            elif filename.endswith('.FIT'):
-                filename_edited = filename[:-4] + '.fits'
+            elif extension == '.txt':
+                logger.info('Storing text file "%s"', filename)
+                shutil.copy(filename, transdir)
+
+            elif extension == '.FIT':
+                filename_edited = re.sub('_crop.*', '', base_name) + '.fits'
                 logger.info('Storing FITS file "%s" as "%s"',
                             filename, filename_edited)
                 shutil.copyfile(

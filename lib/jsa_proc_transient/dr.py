@@ -167,7 +167,8 @@ def transient_analysis(inputfiles, reductiontype):
         raise Exception('Pointing offsets not found')
 
     # Create the pointing offset file.
-    offsetsfile = create_pointing_offsets(xoffset, yoffset, system='TRACKING')
+    offsetsfile = out[:-4] + '_offset.txt'
+    create_pointing_offsets(offsetsfile, xoffset, yoffset, system='TRACKING')
 
     # Re reduce map with pointing offset.
     out_a = get_filename_output(
@@ -204,17 +205,15 @@ def transient_analysis(inputfiles, reductiontype):
         raise Exception(
             'CUPID did not generate catalog "{}"'.format(sourcecatalog_a))
 
-    return [out, sourcecatalog, out_a, sourcecatalog_a]
+    return [out, sourcecatalog, out_a, sourcecatalog_a, offsetsfile]
 
 
-def create_pointing_offsets(x, y, system='TRACKING'):
-    offsetfile = 'pointing_offset.txt'
+def create_pointing_offsets(offsetfile, x, y, system='TRACKING'):
     with open(offsetfile, 'w') as f:
         f.write('# SYSTEM={}\n'.format(system))
         f.write('#TAI DLON DLAT\n')
         f.write('1 {} {}\n'.format(x, y))
         f.write('10000000 {} {}\n'.format(x, y))
-    return offsetfile
 
 
 def safe_object_name(name):
