@@ -82,6 +82,7 @@ def transient_analysis(inputfiles, reductiontype):
 
     # Set wavelength-dependent parameters up.
     prepare_kwargs = get_prepare_parameters(filter_)
+    match_kwargs = get_match_parameters(filter_)
 
     # Get dimmconfig, reference and masks.
     logger.debug('Identifying dimmconfig, mask and reference files')
@@ -151,9 +152,7 @@ def transient_analysis(inputfiles, reductiontype):
 
     # Calculate offsets with J. Lane's source_match
     logger.debug('Performing source match')
-    results = source_match(
-        sourcecatalog, refcat, minpeak=0.2, maxrad=30, maxsep=10,
-        cutoff=4, pix_scale=3.0)
+    results = source_match(sourcecatalog, refcat, **match_kwargs)
     xoffset = results[0][1]
     yoffset = results[0][2]
 
@@ -249,6 +248,9 @@ def get_prepare_parameters(filter_):
     if filter_ == '850':
         beam_fwhm = 14.5
         fcf_arcsec = 2.34
+    elif filter_ == '450':
+        beam_fwhm = 9.8
+        fcf_arcsec = 4.71
     else:
         raise Exception('Wavelength "{}" not recognised'.format(filter_))
     jypbm_conv = fcf_arcsec * 1.133 * (beam_fwhm ** 2.0)
@@ -260,6 +262,23 @@ def get_prepare_parameters(filter_):
         'kern_fwhm': kernel_fwhm,
         'jypbm_conv': jypbm_conv,
         'beam_fwhm': beam_fwhm,
+    }
+
+
+def get_match_parameters(filter_):
+    if filter_ == '850':
+        pix_scale = 3.0
+    elif filter_ == '450':
+        pix_scale = 2.0
+    else:
+        raise Exception('Wavelength "{}" not recognised'.format(filter_))
+
+    return {
+        'minpeak': 0.2,
+        'maxrad': 30,
+        'maxsep': 10,
+        'cutoff': 4,
+        'pix_scale': pix_scale,
     }
 
 
