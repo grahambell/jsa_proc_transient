@@ -42,15 +42,6 @@ kernel = os.path.join(config_dir, 'data', 'kernels', 'TCgauss_6.sdf')
 kernel_fwhm = float(kernel[:-4].split('_')[-1])
 
 
-def transient_analysis_all(inputfiles):
-    outputfiles = []
-
-    for type_ in ['R1', 'R2']:
-        outputfiles.extend(transient_analysis(inputfiles, type_))
-
-    return outputfiles
-
-
 def transient_analysis(inputfiles, reductiontype):
     """
     Take in a list of input files from a single observation and
@@ -58,6 +49,11 @@ def transient_analysis(inputfiles, reductiontype):
 
     Returns a list of output files.
     """
+
+    # Check reduction type is valid.
+    if reductiontype not in dimmconfigdict:
+        raise Exception(
+            'Unrecognised reduction type "{}"'.format(reductiontype))
 
     logger.debug('Checking configuration file "%s" exists', param_file)
     if not os.path.exists(param_file):

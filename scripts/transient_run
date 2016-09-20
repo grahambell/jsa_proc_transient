@@ -14,7 +14,7 @@ sys.path.append(
     os.path.join(os.path.dirname(os.path.dirname(sys.argv[0])), 'lib'))
 
 from jsa_proc.custom.run import CustomJobRun
-from jsa_proc_transient.dr import transient_analysis_all
+from jsa_proc_transient.dr import transient_analysis
 
 
 program_name = os.path.basename(sys.argv[0])
@@ -22,7 +22,7 @@ logger = logging.getLogger(program_name)
 
 
 class TransientRun(CustomJobRun):
-    def run_processing(self, inputs, transdir, id_='unknown'):
+    def run_processing(self, inputs, transdir, id_='unknown', parameters=[]):
         """
         Function to launch data processing.
 
@@ -31,7 +31,11 @@ class TransientRun(CustomJobRun):
         :param id: job identifier
         """
 
-        outputs = transient_analysis_all(inputs)
+        if len(parameters) != 1:
+            raise Exception('Expected one parameter: the reduction type')
+        reductiontype = parameters[0]
+
+        outputs = transient_analysis(inputs, reductiontype)
 
         for filename in outputs:
             (base_name, extension) = os.path.splitext(filename)

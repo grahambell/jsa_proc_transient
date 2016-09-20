@@ -27,7 +27,7 @@ my $project = 'M16AL001';
 my $priority = 100;
 my $task = 'lap-transient';
 my $only_info = 0;
-my $drparams = '';
+my @reductions = qw/R1 R2/;
 
 die 'UT date not specified' unless defined $ut;
 
@@ -63,19 +63,22 @@ else {
 
             my $subsyshdr = $subsys->hdrhash();
 
-            my $tag = $task . "-" . $subsys->obsid
-                            . "-" . $subsyshdr->{FILTER};
+            foreach my $reduction (@reductions) {
+                my $tag = $task . "-" . $subsys->obsid
+                                . "-" . $subsyshdr->{FILTER}
+                                . "-" . $reduction;
 
-            my $obsinfo = create_obsinfo_hash($obs, $subsyshdr);
-            $obsinfo->{'association'} = $tag;
+                my $obsinfo = create_obsinfo_hash($obs, $subsyshdr);
+                $obsinfo->{'association'} = $tag;
 
-            $groups{$tag} = {
-                mode => 'obs',
-                task => $task,
-                drparams => $drparams,
-                files => [map {basename($_)} $subsys->filename()],
-                obsinfolist => [$obsinfo],
-            };
+                $groups{$tag} = {
+                    mode => 'obs',
+                    task => $task,
+                    drparams => $reduction,
+                    files => [map {basename($_)} $subsys->filename()],
+                    obsinfolist => [$obsinfo],
+                };
+            }
 
         }
     }
