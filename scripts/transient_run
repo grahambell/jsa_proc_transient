@@ -44,7 +44,8 @@ class TransientRun(CustomJobRun):
                 shutil.copy(filename, transdir)
 
             elif extension == '.FIT':
-                filename_edited = re.sub('_crop.*', '', base_name) + '.fits'
+                filename_edited = re.sub(
+                    '_crop.*', '_cat', base_name) + '.fits'
                 logger.info('Storing FITS file "%s" as "%s"',
                             filename, filename_edited)
                 shutil.copyfile(
