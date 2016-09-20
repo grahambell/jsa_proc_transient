@@ -14,15 +14,24 @@ from jsa_proc_transient.dr import create_reference_catalog
 
 logging.basicConfig(level=logging.DEBUG)
 
-for source in [
-        'IC348',
-        'NGC1333',
-        'NGC2024',
-        'NGC2071',
-        'OMC23',
-        'OPH_CORE',
-        'SERPENS_MAIN',
-        'SERPENS_SOUTH',
+for (source, filter_, ref_map) in [
+        ('IC348',         '850', '000/000204/000204830/IC348_20151222_00019_850_ER1.sdf'),
+        ('IC348',         '450', '000/000204/000204829/IC348_20151222_00019_450_ER1.sdf'),
+        ('NGC1333',       '850', '000/000204/000204828/NGC1333_20151222_00018_850_ER1.sdf'),
+        ('NGC1333',       '450', '000/000204/000204831/NGC1333_20151222_00018_450_ER1.sdf'),
+        ('NGC2024',       '850', '000/000206/000206538/NGC2024_20151226_00049_850_ER1.sdf'),
+        ('NGC2024',       '450', '000/000206/000206696/NGC2024_20151226_00049_450_ER1.sdf'),
+        ('NGC2071',       '850', '000/000206/000206539/NGC2071_20151226_00052_850_ER1.sdf'),
+        #('NGC2071',       '450', ''), -- no sources found
+        ('OMC23',         '850', '000/000206/000206540/OMC23_20151226_00036_850_ER1.sdf'),
+        ('OMC23',         '450', '000/000206/000206697/OMC23_20151226_00036_450_ER1.sdf'),
+        ('OPH_CORE',      '850', '000/000206/000206541/OPH_CORE_20160115_00084_850_ER1.sdf'),
+        ('OPH_CORE',      '450', '000/000206/000206615/OPH_CORE_20160115_00084_450_ER1.sdf'),
+        ('SERPENS_MAIN',  '850', '000/000206/000206548/SERPENS_MAIN_20160202_00054_850_ER1.sdf'),
+        ('SERPENS_MAIN',  '450', '000/000206/000206621/SERPENS_MAIN_20160202_00054_450_ER1.sdf'),
+        ('SERPENS_SOUTH', '850', '000/000206/000206547/SERPENS_SOUTH_20160202_00058_850_ER1.sdf'),
+        ('SERPENS_SOUTH', '450', '000/000206/000206622/SERPENS_SOUTH_20160202_00058_450_ER1.sdf'),
         ]:
-    for filter_ in ['850', '450']:
-        create_reference_catalog(source, filter_)
+    create_reference_catalog(
+        source, filter_,
+        os.path.join('/net/kamaka/export/data/jsa_proc/output', ref_map))

@@ -220,9 +220,8 @@ def transient_analysis(inputfiles, reductiontype):
     return [out_cal, sourcecatalog, out_a_cal, sourcecatalog_a, offsetsfile]
 
 
-def create_reference_catalog(source, filter_):
+def create_reference_catalog(source, filter_, ref_map_path):
     ref_cat_path = get_filename_ref_cat(source, filter_)
-    ref_map_path = get_filename_reference(source, filter_)
 
     if os.path.exists(ref_cat_path):
         raise Exception(
