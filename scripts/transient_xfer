@@ -33,14 +33,18 @@ class TransientTransfer(CustomJobTransfer):
         :param filename: the name of the file.
         """
 
-        m = re.match('^([-_A-Z0-9]+)_[0-9]{8}_[0-9]{5}_', filename)
+        m = re.match(
+            '^([-_A-Z0-9]+)_[0-9]{8}_[0-9]{5}_[48]50_E([AR][0-9]+)[._]',
+            filename)
 
         if not m:
             raise Exception(
-                'Could not extract source name '
+                'Could not extract source name and reduction type '
                 'from file name "{}"'.format(filename))
 
-        return m.group(1)
+        (source, reductiontype) = m.groups()
+
+        return '{}/{}_images'.format(source, reductiontype)
 
 
 if __name__ == '__main__':
