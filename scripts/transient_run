@@ -38,12 +38,15 @@ class TransientRun(CustomJobRun):
 
             if extension == '.sdf':
                 logger.info('Storing SDF file "%s"', filename)
-                shutil.copy(filename, transdir)
+                filename_edited = re.sub(
+                    '_cal$', '', base_name) + '.sdf'
+                filename_trans = os.path.join(transdir, filename_edited)
+                shutil.copyfile(filename, filename_trans)
                 subprocess.check_call(
                     [
                         '/bin/gzip',
                         '--best',
-                        os.path.join(transdir, filename),
+                        filename_trans,
                     ],
                     shell=False)
 

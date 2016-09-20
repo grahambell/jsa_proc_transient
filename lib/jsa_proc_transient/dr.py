@@ -198,7 +198,30 @@ def transient_analysis(inputfiles, reductiontype):
         raise Exception(
             'CUPID did not generate catalog "{}"'.format(sourcecatalog_a))
 
-    return [out, sourcecatalog, out_a, sourcecatalog_a, offsetsfile]
+    # Apply FCF calibration.
+    out_cal = out[:-4] + '_cal.sdf'
+    logger.debug('Calibrating file "%s" (making "%s")', out, out_cal)
+    subprocess.check_call(
+        [
+            os.path.expandvars('$KAPPA_DIR/cmult'),
+            'in={}'.format(out),
+            'out={}'.format(out_cal),
+            'scalar={}'.format(get_fcf_arcsec(filter_) * 1000.0),
+        ],
+        shell=False)
+
+    out_a_cal = out_a[:-4] + '_cal.sdf'
+    logger.debug('Calibrating file "%s" (making "%s")', out_a, out_a_cal)
+    subprocess.check_call(
+        [
+            os.path.expandvars('$KAPPA_DIR/cmult'),
+            'in={}'.format(out_a),
+            'out={}'.format(out_a_cal),
+            'scalar={}'.format(get_fcf_arcsec(filter_) * 1000.0),
+        ],
+        shell=False)
+
+    return [out_cal, sourcecatalog, out_a_cal, sourcecatalog_a, offsetsfile]
 
 
 def create_reference_catalog(source, filter_):
@@ -244,15 +267,27 @@ def create_reference_catalog(source, filter_):
     shutil.copyfile(sourcecatalog, ref_cat_path)
 
 
-def get_prepare_parameters(filter_):
+def get_fcf_arcsec(filter_):
     if filter_ == '850':
-        beam_fwhm = 14.5
         fcf_arcsec = 2.34
     elif filter_ == '450':
-        beam_fwhm = 9.8
         fcf_arcsec = 4.71
     else:
         raise Exception('Wavelength "{}" not recognised'.format(filter_))
+
+    return fcf_arcsec
+
+
+def get_prepare_parameters(filter_):
+    fcf_arcsec = get_fcf_arcsec(filter_)
+
+    if filter_ == '850':
+        beam_fwhm = 14.5
+    elif filter_ == '450':
+        beam_fwhm = 9.8
+    else:
+        raise Exception('Wavelength "{}" not recognised'.format(filter_))
+
     jypbm_conv = fcf_arcsec * 1.133 * (beam_fwhm ** 2.0)
 
     kernel_copy = shutil.copy(kernel, '.')
