@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import re
+import subprocess
 import sys
 
 # Add relative library directory to path.
@@ -38,6 +39,13 @@ class TransientRun(CustomJobRun):
             if extension == '.sdf':
                 logger.info('Storing SDF file "%s"', filename)
                 shutil.copy(filename, transdir)
+                subprocess.check_call(
+                    [
+                        '/bin/gzip',
+                        '--best',
+                        os.path.join(transdir, filename),
+                    ],
+                    shell=False)
 
             elif extension == '.txt':
                 logger.info('Storing text file "%s"', filename)
