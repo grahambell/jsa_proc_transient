@@ -99,7 +99,7 @@ def transient_analysis(inputfiles, reductiontype):
         raise Exception('Reference file "{}" not found'.format(reference))
     reference = shutil.copy(reference, '.')
 
-    refcat = get_filename_ref_cat(source, filter_)
+    refcat = get_filename_ref_cat(source, filter_, reductiontype)
     if not os.path.exists(refcat):
         raise Exception('Reference catalog "{}" not found'.format(refcat))
     refcat = shutil.copy(refcat, '.')
@@ -220,8 +220,8 @@ def transient_analysis(inputfiles, reductiontype):
     return [out_cal, sourcecatalog, out_a_cal, sourcecatalog_a, offsetsfile]
 
 
-def create_reference_catalog(source, filter_, ref_map_path):
-    ref_cat_path = get_filename_ref_cat(source, filter_)
+def create_reference_catalog(source, filter_, reductiontype, ref_map_path):
+    ref_cat_path = get_filename_ref_cat(source, filter_, reductiontype)
 
     if os.path.exists(ref_cat_path):
         raise Exception(
@@ -351,10 +351,10 @@ def get_filename_reference(source, filter_):
         '{}_reference_{}.sdf'.format(source, filter_))
 
 
-def get_filename_ref_cat(source, filter_):
+def get_filename_ref_cat(source, filter_, reductiontype):
     return os.path.join(
         data_dir, 'cat',
-        '{}_reference_cat_{}.fits'.format(source, filter_))
+        '{}_reference_cat_{}_{}.fits'.format(source, filter_, reductiontype))
 
 
 def get_filename_output(source, date, obsnum, filter_, reductiontype, aligned):
