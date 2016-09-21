@@ -50,9 +50,10 @@ else {
     foreach my $obs ($grp->obs) {
         next if $obs->status == OMP__OBS_JUNK;
 
-        my @subsystems = $obs->subsystems;
+        my @files = ();
+        my $obsinfo = undef;
 
-        for my $subsys (@subsystems) {
+        for my $subsys ($obs->subsystems()) {
             my @all_obsidss = $subsys->obsidss;
             my $obsidss = $all_obsidss[0];
 
@@ -61,25 +62,30 @@ else {
 
             next if exists $JUNK_OBSIDSS{$obsidss};
 
-            my $subsyshdr = $subsys->hdrhash();
+            unless (defined $obsinfo) {
+                my $subsyshdr = $subsys->hdrhash();
+                $obsinfo = create_obsinfo_hash($obs, $subsyshdr)
+            }
 
+            push @files, map {basename($_)} $subsys->filename();
+        }
+
+        if (scalar @files) {
             foreach my $reduction (@reductions) {
-                my $tag = $task . "-" . $subsys->obsid
-                                . "-" . $subsyshdr->{FILTER}
+                my $tag = $task . "-" . $obs->obsid
                                 . "-" . $reduction;
-
-                my $obsinfo = create_obsinfo_hash($obs, $subsyshdr);
                 $obsinfo->{'association'} = $tag;
+                undef $obsinfo->{'obsidss'};
+                undef $obsinfo->{'subsys'};
 
                 $groups{$tag} = {
                     mode => 'obs',
                     task => $task,
                     drparams => $reduction,
-                    files => [map {basename($_)} $subsys->filename()],
+                    files => \@files,
                     obsinfolist => [$obsinfo],
                 };
             }
-
         }
     }
 
