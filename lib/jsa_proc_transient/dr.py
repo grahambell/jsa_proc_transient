@@ -55,14 +55,60 @@ def transient_analysis(inputfiles, reductiontype):
         raise Exception(
             'Unrecognised reduction type "{}"'.format(reductiontype))
 
-    logger.debug('Checking configuration file "%s" exists', param_file)
-    if not os.path.exists(param_file):
-        raise Exception('Configuration file "{}" not found'.format(param_file))
-    param_file_copy = shutil.copy(param_file, '.')
-
     logger.debug('Checking kernel file "%s" exists', kernel)
     if not os.path.exists(kernel):
         raise Exception('Kernel file "{}" not found'.format(kernel))
+
+    # Organize input files into subsystems.
+    logger.debug('Organizing input files by subsystem')
+    subsystems = {450: [], 850: []}
+
+    for file_ in inputfiles:
+        file_basename = os.path.basename(file_)
+        if file_basename.startswith('s4'):
+            subsystems[450].append(file_)
+        elif file_basename.startswith('s8'):
+            subsystems[850].append(file_)
+        else:
+            raise Exception(
+                'Did not recognise raw file name "{}"'.format(file_basename))
+
+    if not subsystems[850]:
+        raise Exception('No 850um data files given')
+
+    output_files = []
+
+    logger.debug('Performing 850um analysis')
+    output_files.extend(transient_analysis_subsystem(
+        subsystems[850], reductiontype, '850', None))
+
+    if subsystems[450]:
+        # Offsets file should have been first given.
+        offsetsfile = output_files[0]
+
+        if not offsetsfile.endswith('_offset.txt'):
+            raise Exception(
+                'File "{}" does not look like an offsets file'.format(
+                    offsetsfile))
+
+        output_files.extend(transient_analysis_subsystem(
+            subsystems[450], reductiontype, '450', offsetsfile))
+
+    return output_files
+
+
+def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
+                                 offsetsfile):
+    """
+    Take in a list of input files from one subsystem of a single observation
+    and the reduction type (e.g. 'R1', 'R2' etc).
+
+    Returns a list of output files.
+
+    If an offsetsfile is not given then an initial reduction will be done
+    to determine the offsets.  In this case the newly created offsetsfile
+    will be the first file returned.
+    """
 
     # Get source, utdate, obsnum and fiter.
     logger.debug('Reading header from file "%s"', inputfiles[0])
@@ -71,7 +117,8 @@ def transient_analysis(inputfiles, reductiontype):
     source = safe_object_name(header['OBJECT'])
     date = header['UTDATE']
     obsnum = header['OBSNUM']
-    filter_ = header['FILTER']
+    if filter_ != header['FILTER']:
+        raise Exception('Unexpected value of FILTER header')
 
     logger.info('Performing %sum %s reduction for %s on %s (observation %i)',
                 filter_, reductiontype, source, date, obsnum)
@@ -99,14 +146,10 @@ def transient_analysis(inputfiles, reductiontype):
         raise Exception('Reference file "{}" not found'.format(reference))
     reference = shutil.copy(reference, '.')
 
-    refcat = get_filename_ref_cat(source, filter_, reductiontype)
-    if not os.path.exists(refcat):
-        raise Exception('Reference catalog "{}" not found'.format(refcat))
-    refcat = shutil.copy(refcat, '.')
-
-    # Create output file name.
-    out = get_filename_output(
-        source, date, obsnum, filter_, reductiontype, False)
+    logger.debug('Checking configuration file "%s" exists', param_file)
+    if not os.path.exists(param_file):
+        raise Exception('Configuration file "{}" not found'.format(param_file))
+    param_file_copy = shutil.copy(param_file, '.')
 
     # Create list of input files
     filelist = tempfile.NamedTemporaryFile(
@@ -114,7 +157,83 @@ def transient_analysis(inputfiles, reductiontype):
     filelist.file.writelines([i + '\n' for i in inputfiles])
     filelist.file.close()
 
-    # run makemap
+    output_files = []
+
+    if offsetsfile is None:
+        # Identify reference catalog.
+        refcat = get_filename_ref_cat(source, filter_, reductiontype)
+        if not os.path.exists(refcat):
+            raise Exception('Reference catalog "{}" not found'.format(refcat))
+        refcat = shutil.copy(refcat, '.')
+
+        # Create output file name.
+        out = get_filename_output(
+            source, date, obsnum, filter_, reductiontype, False)
+
+        # run makemap
+        logger.debug('Running MAKEMAP, output: "%s"', out)
+        subprocess.check_call(
+            [
+                os.path.expandvars('$SMURF_DIR/makemap'),
+                'in=^{}'.format(filelist.name),
+                'config=^{}'.format(dimmconfig),
+                'out={}'.format(out),
+                'ref={}'.format(reference),
+                'mask2={}'.format(mask2),
+                'msg_filter=none',
+            ],
+            shell=False)
+
+        if not os.path.exists(out):
+            raise Exception('MAKEMAP did not generate output "{}"'.format(out))
+
+        # Prepare the image (smoothing etc) by running J. Lane's
+        # prepare image routine.
+        logger.debug('Preparing image')
+        prepare_image(out, **prepare_kwargs)
+        prepared_file = out[:-4]+'_crop_smooth_jypbm.sdf'
+
+        # Identify the sources run J. Lane's run_gaussclumps routine.
+        logger.debug('Running CUPID')
+        run_gaussclumps(prepared_file, param_file_copy)
+        sourcecatalog = prepared_file[:-4] + '_log.FIT'
+
+        if not os.path.exists(sourcecatalog):
+            raise Exception(
+                'CUPID did not generate catalog "{}"'.format(sourcecatalog))
+
+        # Calculate offsets with J. Lane's source_match
+        logger.debug('Performing source match')
+        results = source_match(sourcecatalog, refcat, **match_kwargs)
+        xoffset = results[0][1]
+        yoffset = results[0][2]
+
+        if (xoffset is None) or (yoffset is None):
+            raise Exception('Pointing offsets not found')
+
+        # Create the pointing offset file.
+        offsetsfile = out[:-4] + '_offset.txt'
+        create_pointing_offsets(
+            offsetsfile, xoffset, yoffset, system='TRACKING')
+
+        # Apply FCF calibration.
+        out_cal = out[:-4] + '_cal.sdf'
+        logger.debug('Calibrating file "%s" (making "%s")', out, out_cal)
+        subprocess.check_call(
+            [
+                os.path.expandvars('$KAPPA_DIR/cmult'),
+                'in={}'.format(out),
+                'out={}'.format(out_cal),
+                'scalar={}'.format(get_fcf_arcsec(filter_) * 1000.0),
+            ],
+            shell=False)
+
+        output_files.extend([offsetsfile, out_cal, sourcecatalog])
+
+    # Re reduce map with pointing offset.
+    out = get_filename_output(
+        source, date, obsnum, filter_, reductiontype, True)
+
     logger.debug('Running MAKEMAP, output: "%s"', out)
     subprocess.check_call(
         [
@@ -124,6 +243,7 @@ def transient_analysis(inputfiles, reductiontype):
             'out={}'.format(out),
             'ref={}'.format(reference),
             'mask2={}'.format(mask2),
+            'pointing={}'.format(offsetsfile),
             'msg_filter=none',
         ],
         shell=False)
@@ -131,8 +251,7 @@ def transient_analysis(inputfiles, reductiontype):
     if not os.path.exists(out):
         raise Exception('MAKEMAP did not generate output "{}"'.format(out))
 
-    # Prepare the image (smoothing etc) by running J. Lane's
-    # prepare image routine.
+    # Re run Lane's smoothing and gauss clumps routine.
     logger.debug('Preparing image')
     prepare_image(out, **prepare_kwargs)
     prepared_file = out[:-4]+'_crop_smooth_jypbm.sdf'
@@ -146,54 +265,6 @@ def transient_analysis(inputfiles, reductiontype):
         raise Exception(
             'CUPID did not generate catalog "{}"'.format(sourcecatalog))
 
-    # Calculate offsets with J. Lane's source_match
-    logger.debug('Performing source match')
-    results = source_match(sourcecatalog, refcat, **match_kwargs)
-    xoffset = results[0][1]
-    yoffset = results[0][2]
-
-    if (xoffset is None) or (yoffset is None):
-        raise Exception('Pointing offsets not found')
-
-    # Create the pointing offset file.
-    offsetsfile = out[:-4] + '_offset.txt'
-    create_pointing_offsets(offsetsfile, xoffset, yoffset, system='TRACKING')
-
-    # Re reduce map with pointing offset.
-    out_a = get_filename_output(
-        source, date, obsnum, filter_, reductiontype, True)
-
-    logger.debug('Running MAKEMAP, output: "%s"', out_a)
-    subprocess.check_call(
-        [
-            os.path.expandvars('$SMURF_DIR/makemap'),
-            'in=^{}'.format(filelist.name),
-            'config=^{}'.format(dimmconfig),
-            'out={}'.format(out_a),
-            'ref={}'.format(reference),
-            'mask2={}'.format(mask2),
-            'pointing={}'.format(offsetsfile),
-            'msg_filter=none',
-        ],
-        shell=False)
-
-    if not os.path.exists(out_a):
-        raise Exception('MAKEMAP did not generate output "{}"'.format(out_a))
-
-    # Re run Lane's smoothing and gauss clumps routine.
-    logger.debug('Preparing image')
-    prepare_image(out_a, **prepare_kwargs)
-    prepared_file = out_a[:-4]+'_crop_smooth_jypbm.sdf'
-
-    # Identify the sources run J. Lane's run_gaussclumps routine.
-    logger.debug('Running CUPID')
-    run_gaussclumps(prepared_file, param_file_copy)
-    sourcecatalog_a = prepared_file[:-4] + '_log.FIT'
-
-    if not os.path.exists(sourcecatalog_a):
-        raise Exception(
-            'CUPID did not generate catalog "{}"'.format(sourcecatalog_a))
-
     # Apply FCF calibration.
     out_cal = out[:-4] + '_cal.sdf'
     logger.debug('Calibrating file "%s" (making "%s")', out, out_cal)
@@ -206,18 +277,9 @@ def transient_analysis(inputfiles, reductiontype):
         ],
         shell=False)
 
-    out_a_cal = out_a[:-4] + '_cal.sdf'
-    logger.debug('Calibrating file "%s" (making "%s")', out_a, out_a_cal)
-    subprocess.check_call(
-        [
-            os.path.expandvars('$KAPPA_DIR/cmult'),
-            'in={}'.format(out_a),
-            'out={}'.format(out_a_cal),
-            'scalar={}'.format(get_fcf_arcsec(filter_) * 1000.0),
-        ],
-        shell=False)
+    output_files.extend([out_cal, sourcecatalog])
 
-    return [out_cal, sourcecatalog, out_a_cal, sourcecatalog_a, offsetsfile]
+    return output_files
 
 
 def create_reference_catalog(source, filter_, reductiontype, ref_map_path):
