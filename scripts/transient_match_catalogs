@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+
+from __future__ import absolute_import, division, print_function
+
+import logging
+import os
+import re
+import sys
+
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.dirname(sys.argv[0])), 'lib'))
+
+from transientclumps.TCOffsetFunctions import source_match
+from jsa_proc_transient.dr import get_match_parameters
+
+logging.basicConfig(level=logging.DEBUG)
+
+
+def main():
+    if len(sys.argv) != 3:
+        raise Exception('Please provide 2 catalog files')
+
+    cat_ref = sys.argv[1]
+    cat_new = sys.argv[2]
+
+    filter_ = get_filter(cat_ref)
+    if filter_ != get_filter(cat_new):
+        raise Exception('Catalogs appear to be for different filters')
+
+    match_kwargs = get_match_parameters(filter_)
+
+    results = source_match(cat_new, cat_ref, **match_kwargs)
+    xoffset = results[0][1]
+    yoffset = results[0][2]
+
+    print('Offsets: {} {}'.format(xoffset, yoffset))
+
+
+def get_filter(filename):
+    m = re.search('_([48]50)_', filename)
+
+    if not m:
+        raise Exception(
+            'Could not find filter in filename "{}"'.format(filename))
+
+    return m.group(1)
+
+
+if __name__ == '__main__':
+    main()
