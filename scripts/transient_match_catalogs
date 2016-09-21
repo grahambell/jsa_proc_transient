@@ -30,8 +30,8 @@ def main():
     match_kwargs = get_match_parameters(filter_)
 
     results = source_match(cat_new, cat_ref, **match_kwargs)
-    xoffset = results[0][1]
-    yoffset = results[0][2]
+    xoffset = results[0][0]
+    yoffset = results[0][1]
 
     print('Offsets: {} {}'.format(xoffset, yoffset))
 

@@ -208,8 +208,8 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
         # Calculate offsets with J. Lane's source_match
         logger.debug('Performing source match')
         results = source_match(sourcecatalog, refcat, **match_kwargs)
-        xoffset = results[0][1]
-        yoffset = results[0][2]
+        xoffset = results[0][0]
+        yoffset = results[0][1]
 
         if (xoffset is None) or (yoffset is None):
             raise Exception('Pointing offsets not found')
