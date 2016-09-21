@@ -157,6 +157,9 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     filelist.file.writelines([i + '\n' for i in inputfiles])
     filelist.file.close()
 
+    # Prepare environment.
+    os.environ['SMURF_THREADS'] = '16'
+
     output_files = []
 
     if offsetsfile is None:
