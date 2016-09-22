@@ -35,6 +35,9 @@ class TransientRun(CustomJobRun):
             raise Exception('Expected one parameter: the reduction type')
         reductiontype = parameters[0]
 
+        # Send all output to STDERR (so that jsawrapdr collects it).
+        os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
+
         outputs = transient_analysis(inputs, reductiontype)
 
         for filename in outputs:
