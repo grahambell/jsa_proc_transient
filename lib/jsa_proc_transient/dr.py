@@ -92,13 +92,14 @@ def transient_analysis(inputfiles, reductiontype):
                     offsetsfile))
 
         output_files.extend(transient_analysis_subsystem(
-            subsystems[450], reductiontype, '450', offsetsfile))
+            subsystems[450], reductiontype, '450', offsetsfile,
+            allow_missing_catalog=True))
 
     return output_files
 
 
 def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
-                                 offsetsfile):
+                                 offsetsfile, allow_missing_catalog=False):
     """
     Take in a list of input files from one subsystem of a single observation
     and the reduction type (e.g. 'R1', 'R2' etc).
@@ -264,7 +265,9 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     run_gaussclumps(prepared_file, param_file_copy)
     sourcecatalog = prepared_file[:-4] + '_log.FIT'
 
-    if not os.path.exists(sourcecatalog):
+    if os.path.exists(sourcecatalog):
+        output_files.append(sourcecatalog)
+    elif not allow_missing_catalog:
         raise Exception(
             'CUPID did not generate catalog "{}"'.format(sourcecatalog))
 
@@ -280,7 +283,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
         ],
         shell=False)
 
-    output_files.extend([out_cal, sourcecatalog])
+    output_files.append(out_cal)
 
     return output_files
 
