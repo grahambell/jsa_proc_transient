@@ -137,7 +137,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     mask2 = '!'
     mask_reductiontype = maskdict.get(reductiontype)
     if mask_reductiontype is not None:
-        mask2 = get_filename_mask(source, mask_reductiontype)
+        mask2 = get_filename_mask(source, filter_, mask_reductiontype)
         if not os.path.exists(mask2):
             raise Exception('Mask file "{}" not found'.format(mask2))
         mask2 = shutil.copy(mask2, '.')
@@ -407,10 +407,10 @@ def safe_object_name(name):
     return name.upper()
 
 
-def get_filename_mask(source, reductiontype):
+def get_filename_mask(source, filter_, reductiontype):
     return os.path.join(
         data_dir, 'mask',
-        '{}_{}_extmask.sdf'.format(source, reductiontype))
+        '{}_extmask_{}_{}.sdf'.format(source, filter_, reductiontype))
 
 
 def get_filename_reference(source, filter_):
