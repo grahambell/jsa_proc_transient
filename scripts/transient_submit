@@ -27,7 +27,7 @@ my $project = 'M16AL001';
 my $priority = 100;
 my $task = 'lap-transient';
 my $only_info = 0;
-my @reductions = qw/R1 R2/;
+my @reductions = qw/R1 R2 R3 R4/;
 
 die 'UT date not specified' unless defined $ut;
 
