@@ -306,48 +306,6 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     return output_files
 
 
-def create_reference_catalog(source, filter_, reductiontype, ref_map_path):
-    ref_cat_path = get_filename_ref_cat(source, filter_, reductiontype)
-
-    if os.path.exists(ref_cat_path):
-        raise Exception(
-            'Reference catalog "{}" already exists'.format(ref_cat_path))
-
-    if not os.path.exists(ref_map_path):
-        raise Exception(
-            'Reference file "{}" not found'.format(ref_map_path))
-
-    if not os.path.exists(param_file):
-        raise Exception('Configuration file "{}" not found'.format(param_file))
-    param_file_copy = shutil.copy(param_file, '.')
-
-    if not os.path.exists(kernel):
-        raise Exception('Kernel file "{}" not found'.format(kernel))
-
-    prepare_kwargs = get_prepare_parameters(filter_)
-
-    ref_map = os.path.basename(ref_map_path)
-    shutil.copyfile(ref_map_path, ref_map)
-
-    # Prepare the image (smoothing etc) by running J. Lane's
-    # prepare image routine.
-    logger.debug('Preparing reference image')
-    prepare_image(ref_map, **prepare_kwargs)
-    prepared_file = ref_map[:-4] + '_crop_smooth_jypbm.sdf'
-
-    # Identify the sources run J. Lane's run_gaussclumps routine.
-    logger.debug('Running CUPID')
-    run_gaussclumps(prepared_file, param_file_copy)
-    sourcecatalog = prepared_file[:-4] + '_log.FIT'
-
-    if not os.path.exists(sourcecatalog):
-        raise Exception(
-            'CUPID did not generate catalog "{}"'.format(sourcecatalog))
-
-    # Install the reference catalog.
-    shutil.copyfile(sourcecatalog, ref_cat_path)
-
-
 def get_fcf_arcsec(filter_):
     if filter_ == '850':
         fcf_arcsec = 2.34
