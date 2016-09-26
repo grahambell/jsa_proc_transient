@@ -42,7 +42,7 @@ kernel = os.path.join(config_dir, 'data', 'kernels', 'TCgauss_6.sdf')
 kernel_fwhm = float(kernel[:-4].split('_')[-1])
 
 
-def transient_analysis(inputfiles, reductiontype, no_450_cat):
+def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat):
     """
     Take in a list of input files from a single observation and
     the reduction type (e.g. 'R1', 'R2' etc).
@@ -80,7 +80,8 @@ def transient_analysis(inputfiles, reductiontype, no_450_cat):
 
     logger.debug('Performing 850um analysis')
     output_files.extend(transient_analysis_subsystem(
-        subsystems[850], reductiontype, '850', None))
+        subsystems[850], reductiontype, '850', None,
+        install_catalog_as_ref=as_ref_cat))
 
     if subsystems[450]:
         # Offsets file should have been first given.
@@ -99,7 +100,8 @@ def transient_analysis(inputfiles, reductiontype, no_450_cat):
 
 
 def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
-                                 offsetsfile, expect_missing_catalog=False):
+                                 offsetsfile, expect_missing_catalog=False,
+                                 install_catalog_as_ref=False):
     """
     Take in a list of input files from one subsystem of a single observation
     and the reduction type (e.g. 'R1', 'R2' etc).
@@ -166,9 +168,13 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     if offsetsfile is None:
         # Identify reference catalog.
         refcat = get_filename_ref_cat(source, filter_, reductiontype)
-        if not os.path.exists(refcat):
+        if os.path.exists(refcat):
+            # If it already exists, don't try to install a new one.
+            install_catalog_as_ref = False
+            refcat = shutil.copy(refcat, '.')
+        elif not install_catalog_as_ref:
+            # Raise an exception only if we're not making a new ref catalog.
             raise Exception('Reference catalog "{}" not found'.format(refcat))
-        refcat = shutil.copy(refcat, '.')
 
         # Create output file name.
         out = get_filename_output(
@@ -205,6 +211,13 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
         if not os.path.exists(sourcecatalog):
             raise Exception(
                 'CUPID did not generate catalog "{}"'.format(sourcecatalog))
+
+        if install_catalog_as_ref:
+            # Install source catalog as reference.
+            shutil.copyfile(sourcecatalog, refcat)
+
+            # Use as the reference in this run.
+            refcat = sourcecatalog
 
         # Calculate offsets with J. Lane's source_match
         logger.debug('Performing source match')

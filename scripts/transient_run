@@ -25,7 +25,7 @@ logger = logging.getLogger(program_name)
 # Describe extra parameters used by this script.
 usage_extra = """
 Usage:
-    transient_run <reduction_type> [--no-450-cat]
+    transient_run <reduction_type> [--no-450-cat] [--as-ref-cat]
 """
 
 
@@ -48,7 +48,8 @@ class TransientRun(CustomJobRun):
         outputs = transient_analysis(
             inputfiles=inputs,
             reductiontype=args['<reduction_type>'],
-            no_450_cat=args['--no-450-cat'])
+            no_450_cat=args['--no-450-cat'],
+            as_ref_cat=args['--as-ref-cat'])
 
         for filename in outputs:
             (base_name, extension) = os.path.splitext(filename)
