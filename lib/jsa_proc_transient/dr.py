@@ -42,7 +42,7 @@ kernel = os.path.join(config_dir, 'data', 'kernels', 'TCgauss_6.sdf')
 kernel_fwhm = float(kernel[:-4].split('_')[-1])
 
 
-def transient_analysis(inputfiles, reductiontype):
+def transient_analysis(inputfiles, reductiontype, no_450_cat):
     """
     Take in a list of input files from a single observation and
     the reduction type (e.g. 'R1', 'R2' etc).
@@ -93,13 +93,13 @@ def transient_analysis(inputfiles, reductiontype):
 
         output_files.extend(transient_analysis_subsystem(
             subsystems[450], reductiontype, '450', offsetsfile,
-            allow_missing_catalog=True))
+            expect_missing_catalog=no_450_cat))
 
     return output_files
 
 
 def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
-                                 offsetsfile, allow_missing_catalog=False):
+                                 offsetsfile, expect_missing_catalog=False):
     """
     Take in a list of input files from one subsystem of a single observation
     and the reduction type (e.g. 'R1', 'R2' etc).
@@ -266,8 +266,13 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     sourcecatalog = prepared_file[:-4] + '_log.FIT'
 
     if os.path.exists(sourcecatalog):
+        if expect_missing_catalog:
+            raise Exception(
+                'CUPID unexpectedly generated catalog "{}"'.format(
+                    sourcecatalog))
         output_files.append(sourcecatalog)
-    elif not allow_missing_catalog:
+
+    elif not expect_missing_catalog:
         raise Exception(
             'CUPID did not generate catalog "{}"'.format(sourcecatalog))
 
