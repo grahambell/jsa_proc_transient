@@ -18,8 +18,10 @@ logger = logging.getLogger(__name__)
 
 data_dir = '/net/kamaka/export/data/jsa_proc/data/M16AL001'
 
-# Dictionary of which mask to supply as 'mask2' values, by run name.
-# If a reduction is not listed here, it does not use an external mask.
+# Dictionary of which mask to supply as 'REF' values in place of the
+# normal reference image, by run name.
+# If a reduction is not listed here, it does not use an external mask,
+# and should just be given the normal reference image.
 maskdict = {
     'R3': 'R1',
     'R4': 'R2',
@@ -136,17 +138,17 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     if not os.path.exists(dimmconfig):
         raise Exception('Dimmconfig file "{}" not found'.format(dimmconfig))
 
-    mask2 = '!'
     mask_reductiontype = maskdict.get(reductiontype)
     if mask_reductiontype is not None:
-        mask2 = get_filename_mask(source, filter_, mask_reductiontype)
-        if not os.path.exists(mask2):
-            raise Exception('Mask file "{}" not found'.format(mask2))
-        mask2 = shutil.copy(mask2, '.')
-
-    reference = get_filename_reference(source, filter_)
-    if not os.path.exists(reference):
-        raise Exception('Reference file "{}" not found'.format(reference))
+        # Use the appropriate mask as the reference image.
+        reference = get_filename_mask(source, filter_, mask_reductiontype)
+        if not os.path.exists(reference):
+            raise Exception('Mask file "{}" not found'.format(reference))
+    else:
+        # Use the general reference image as we don't need a mask.
+        reference = get_filename_reference(source, filter_)
+        if not os.path.exists(reference):
+            raise Exception('Reference file "{}" not found'.format(reference))
     reference = shutil.copy(reference, '.')
 
     logger.debug('Checking configuration file "%s" exists', param_file)
@@ -189,7 +191,6 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
                 'config=^{}'.format(dimmconfig),
                 'out={}'.format(out),
                 'ref={}'.format(reference),
-                'mask2={}'.format(mask2),
                 'msg_filter=none',
             ],
             shell=False)
@@ -259,7 +260,6 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
             'config=^{}'.format(dimmconfig),
             'out={}'.format(out),
             'ref={}'.format(reference),
-            'mask2={}'.format(mask2),
             'pointing={}'.format(offsetsfile),
             'msg_filter=none',
         ],
