@@ -348,10 +348,6 @@ def get_match_parameters(filter_):
         raise Exception('Wavelength "{}" not recognised'.format(filter_))
 
     return {
-        'minpeak': 0.2,
-        'maxrad': 30,
-        'maxsep': 10,
-        'cutoff': 4,
         'pix_scale': pix_scale,
     }
 
