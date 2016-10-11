@@ -44,7 +44,8 @@ kernel = os.path.join(config_dir, 'data', 'kernels', 'TCgauss_6.sdf')
 kernel_fwhm = float(kernel[:-4].split('_')[-1])
 
 
-def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat):
+def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat,
+                       dimmconfig_850=None, dimmconfig_450=None):
     """
     Take in a list of input files from a single observation and
     the reduction type (e.g. 'R1', 'R2' etc).
@@ -83,7 +84,8 @@ def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat):
     logger.debug('Performing 850um analysis')
     output_files.extend(transient_analysis_subsystem(
         subsystems[850], reductiontype, '850', None,
-        install_catalog_as_ref=as_ref_cat))
+        install_catalog_as_ref=as_ref_cat,
+        dimmconfig=dimmconfig_850))
 
     if subsystems[450]:
         # Offsets file should have been first given.
@@ -96,14 +98,16 @@ def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat):
 
         output_files.extend(transient_analysis_subsystem(
             subsystems[450], reductiontype, '450', offsetsfile,
-            expect_missing_catalog=no_450_cat))
+            expect_missing_catalog=no_450_cat,
+            dimmconfig=dimmconfig_450))
 
     return output_files
 
 
 def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
                                  offsetsfile, expect_missing_catalog=False,
-                                 install_catalog_as_ref=False):
+                                 install_catalog_as_ref=False,
+                                 dimmconfig=None):
     """
     Take in a list of input files from one subsystem of a single observation
     and the reduction type (e.g. 'R1', 'R2' etc).
@@ -134,7 +138,9 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 
     # Get dimmconfig, reference and masks.
     logger.debug('Identifying dimmconfig, mask and reference files')
-    dimmconfig = os.path.expandvars(dimmconfigdict[reductiontype])
+    if dimmconfig is None:
+        dimmconfig = dimmconfigdict[reductiontype]
+    dimmconfig = os.path.expandvars(dimmconfig)
     if not os.path.exists(dimmconfig):
         raise Exception('Dimmconfig file "{}" not found'.format(dimmconfig))
 

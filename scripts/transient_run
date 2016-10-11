@@ -25,7 +25,11 @@ logger = logging.getLogger(program_name)
 # Describe extra parameters used by this script.
 usage_extra = """
 Usage:
-    transient_run <reduction_type> [--no-450-cat] [--as-ref-cat]
+    transient_run <reduction_type> [--no-450-cat] [--as-ref-cat] [--dimmconfig850 <config>] [--dimmconfig450 <config>]
+
+Options:
+    --dimmconfig850 <config>  Dimmconfig file to use for 850um reduction
+    --dimmconfig450 <config>  Dimmconfig file to use for 450um reduction
 """
 
 
@@ -49,7 +53,9 @@ class TransientRun(CustomJobRun):
             inputfiles=inputs,
             reductiontype=args['<reduction_type>'],
             no_450_cat=args['--no-450-cat'],
-            as_ref_cat=args['--as-ref-cat'])
+            as_ref_cat=args['--as-ref-cat'],
+            dimmconfig_850=args['--dimmconfig850'],
+            dimmconfig_450=args['--dimmconfig450'])
 
         for filename in outputs:
             (base_name, extension) = os.path.splitext(filename)
