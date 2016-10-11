@@ -33,6 +33,10 @@ class TransientTransfer(CustomJobTransfer):
         :param filename: the name of the file.
         """
 
+        # Do not store PNG previews.
+        if filename.endswith('.png'):
+            return None
+
         m = re.match(
             '^([-_A-Z0-9]+)_[0-9]{8}_[0-9]{5}_[48]50_E([AR][0-9]+)[._]',
             filename)

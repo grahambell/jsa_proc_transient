@@ -204,6 +204,8 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
         if not os.path.exists(out):
             raise Exception('MAKEMAP did not generate output "{}"'.format(out))
 
+        output_files.extend(create_png_previews(out))
+
         # Prepare the image (smoothing etc) by running J. Lane's
         # prepare image routine.
         logger.debug('Preparing image')
@@ -273,6 +275,8 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 
     if not os.path.exists(out):
         raise Exception('MAKEMAP did not generate output "{}"'.format(out))
+
+    output_files.extend(create_png_previews(out))
 
     # Re run Lane's smoothing and gauss clumps routine.
     logger.debug('Preparing image')
@@ -365,6 +369,25 @@ def create_pointing_offsets(offsetfile, x, y, system='TRACKING'):
         f.write('#TAI DLON DLAT\n')
         f.write('1 {} {}\n'.format(x, y))
         f.write('10000000 {} {}\n'.format(x, y))
+
+
+def create_png_previews(filename, resolutions=[64, 256, 1024]):
+    previews = []
+
+    for resolution in resolutions:
+        logger.debug('Making preview (%i) of file %s', resolution, filename)
+        subprocess.check_call(
+            [
+                os.path.expandvars('$ORAC_DIR/etc/picard_start.sh'),
+                'CREATE_PNG',
+                '--recpars=RESOLUTION={}'.format(resolution),
+                filename,
+            ],
+            shell=False)
+
+        previews.append('{}_{}.png'.format(filename[:-4], resolution))
+
+    return previews
 
 
 def safe_object_name(name):
