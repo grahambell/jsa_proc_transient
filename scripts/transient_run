@@ -78,6 +78,10 @@ class TransientRun(CustomJobRun):
                 logger.info('Storing text file "%s"', filename)
                 shutil.copy(filename, transdir)
 
+            elif extension == '.png':
+                logger.info('Storing preview image "%s"', filename)
+                shutil.copy(filename, transdir)
+
             elif extension == '.FIT':
                 filename_edited = re.sub(
                     '_crop.*', '_cat', base_name) + '.fits'
