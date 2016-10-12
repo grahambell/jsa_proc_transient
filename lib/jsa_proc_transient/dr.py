@@ -204,8 +204,6 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
         if not os.path.exists(out):
             raise Exception('MAKEMAP did not generate output "{}"'.format(out))
 
-        output_files.extend(create_png_previews(out))
-
         # Prepare the image (smoothing etc) by running J. Lane's
         # prepare image routine.
         logger.debug('Preparing image')
@@ -256,6 +254,8 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 
         output_files.extend([offsetsfile, out_cal, sourcecatalog])
 
+        output_files.extend(create_png_previews(out))
+
     # Re reduce map with pointing offset.
     out = get_filename_output(
         source, date, obsnum, filter_, reductiontype, True)
@@ -275,8 +275,6 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 
     if not os.path.exists(out):
         raise Exception('MAKEMAP did not generate output "{}"'.format(out))
-
-    output_files.extend(create_png_previews(out))
 
     # Re run Lane's smoothing and gauss clumps routine.
     logger.debug('Preparing image')
@@ -312,6 +310,8 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
         shell=False)
 
     output_files.append(out_cal)
+
+    output_files.extend(create_png_previews(out))
 
     return output_files
 
