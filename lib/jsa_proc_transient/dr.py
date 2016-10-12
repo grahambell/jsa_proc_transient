@@ -371,23 +371,36 @@ def create_pointing_offsets(offsetfile, x, y, system='TRACKING'):
         f.write('10000000 {} {}\n'.format(x, y))
 
 
-def create_png_previews(filename, resolutions=[64, 256, 1024]):
+def create_png_previews(filename, resolutions=[64, 256, 1024], tries=10):
     previews = []
 
     for resolution in resolutions:
-        logger.debug('Making preview (%i) of file %s', resolution, filename)
-        subprocess.check_call(
-            [
-                '/bin/bash',
-                os.path.expandvars('$ORAC_DIR/etc/picard_start.sh'),
-                'CREATE_PNG',
-                '--recpars=RESOLUTION={}'.format(resolution),
-                '--log', 's', '--nodisp',
-                filename,
-            ],
-            shell=False)
+        preview = '{}_{}.png'.format(filename[:-4], resolution)
 
-        previews.append('{}_{}.png'.format(filename[:-4], resolution))
+        for try_ in range(tries):
+            logger.debug(
+                'Making preview (%i) of file %s', resolution, filename)
+
+            subprocess.check_call(
+                [
+                    '/bin/bash',
+                    os.path.expandvars('$ORAC_DIR/etc/picard_start.sh'),
+                    'CREATE_PNG',
+                    '--recpars=RESOLUTION={}'.format(resolution),
+                    '--log', 's', '--nodisp',
+                    filename,
+                ],
+                shell=False)
+
+            if os.path.exists(preview):
+                break
+
+        else:
+            raise Exception(
+                'Failed to make preview {} after {} attempts'.format(
+                    preview, tries))
+
+        previews.append(preview)
 
     return previews
 
