@@ -378,9 +378,11 @@ def create_png_previews(filename, resolutions=[64, 256, 1024]):
         logger.debug('Making preview (%i) of file %s', resolution, filename)
         subprocess.check_call(
             [
+                '/bin/bash',
                 os.path.expandvars('$ORAC_DIR/etc/picard_start.sh'),
                 'CREATE_PNG',
                 '--recpars=RESOLUTION={}'.format(resolution),
+                '--log', 's', '--nodisp',
                 filename,
             ],
             shell=False)
