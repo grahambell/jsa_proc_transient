@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 from codecs import ascii_decode
 import os
 import logging
@@ -13,6 +15,8 @@ from starlink.ndfpack import Ndf
 from transientclumps.TCOffsetFunctions import source_match
 from transientclumps.TCGaussclumpsFunctions import run_gaussclumps
 from transientclumps.TCPrepFunctions import prepare_image
+
+from .gbs import get_field_name as gbs_field_name
 
 logger = logging.getLogger(__name__)
 
@@ -123,14 +127,27 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     logger.debug('Reading header from file "%s"', inputfiles[0])
     header = fits.Header.fromstring(''.join(
         ascii_decode(x)[0] for x in Ndf(inputfiles[0]).head['FITS']))
-    source = safe_object_name(header['OBJECT'])
+    raw_source = header['OBJECT']
+    source = safe_object_name(raw_source)
     date = header['UTDATE']
     obsnum = header['OBSNUM']
     if filter_ != header['FILTER']:
         raise Exception('Unexpected value of FILTER header')
 
-    logger.info('Performing %sum %s reduction for %s on %s (observation %i)',
-                filter_, reductiontype, source, date, obsnum)
+    project = header['PROJECT']
+    if project == 'M16AL001':
+        is_gbs = False
+        field_name = source
+    elif project.startswith('MJLSG'):
+        is_gbs = True
+        field_name = gbs_field_name(raw_source)
+    else:
+        raise Exception('Unexpected project value "{}"'.format(project))
+
+    logger.info(
+        'Performing %sum %s reduction for %s on %s (observation %i, %s)',
+        filter_, reductiontype, source, date, obsnum,
+        ('GBS' if is_gbs else 'transient'))
 
     # Set wavelength-dependent parameters up.
     prepare_kwargs = get_prepare_parameters(filter_)
@@ -147,12 +164,12 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     mask_reductiontype = maskdict.get(reductiontype)
     if mask_reductiontype is not None:
         # Use the appropriate mask as the reference image.
-        reference = get_filename_mask(source, filter_, mask_reductiontype)
+        reference = get_filename_mask(field_name, filter_, mask_reductiontype)
         if not os.path.exists(reference):
             raise Exception('Mask file "{}" not found'.format(reference))
     else:
         # Use the general reference image as we don't need a mask.
-        reference = get_filename_reference(source, filter_)
+        reference = get_filename_reference(field_name, filter_)
         if not os.path.exists(reference):
             raise Exception('Reference file "{}" not found'.format(reference))
     reference = shutil.copy(reference, '.')
@@ -175,7 +192,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 
     if offsetsfile is None:
         # Identify reference catalog.
-        refcat = get_filename_ref_cat(source, filter_, reductiontype)
+        refcat = get_filename_ref_cat(field_name, filter_, reductiontype)
         if os.path.exists(refcat):
             # If it already exists, don't try to install a new one.
             install_catalog_as_ref = False
@@ -186,7 +203,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 
         # Create output file name.
         out = get_filename_output(
-            source, date, obsnum, filter_, reductiontype, False)
+            source, date, obsnum, filter_, reductiontype, False, is_gbs)
 
         # run makemap
         logger.debug('Running MAKEMAP, output: "%s"', out)
@@ -258,7 +275,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 
     # Re reduce map with pointing offset.
     out = get_filename_output(
-        source, date, obsnum, filter_, reductiontype, True)
+        source, date, obsnum, filter_, reductiontype, True, is_gbs)
 
     logger.debug('Running MAKEMAP, output: "%s"', out)
     subprocess.check_call(
@@ -415,10 +432,10 @@ def safe_object_name(name):
     name = re.sub(' +(?=[0-9])', '', name)
 
     # Remove unexpected characters.
-    name = re.sub('[^-_A-Za-z0-9]', '_', name)
+    name = re.sub('[^_A-Za-z0-9]', '_', name)
 
     # Adjust name of OMC2-3.
-    name = re.sub('OMC2-3', 'OMC23', name)
+    name = re.sub('^OMC2_3', 'OMC23', name)
 
     # Return in upper case.
     return name.upper()
@@ -442,11 +459,14 @@ def get_filename_ref_cat(source, filter_, reductiontype):
         '{}_reference_cat_{}_{}.fits'.format(source, filter_, reductiontype))
 
 
-def get_filename_output(source, date, obsnum, filter_, reductiontype, aligned):
+def get_filename_output(source, date, obsnum, filter_, reductiontype, aligned,
+                        is_gbs):
     # Change 1st letter of reduction type ('R') to 'A' for aligned map.
     if aligned:
         reductiontype = 'A' + reductiontype[1:]
 
-    # Add 'E' (for EAO) prefix to reduction type.
-    return '{}_{}_{:05d}_{}_E{}.sdf'.format(
-        source, date, obsnum, filter_, reductiontype)
+    # Add 'E' (for EAO) prefix to reduction type, or 'G' for GBS data.
+    survey_code = 'G' if is_gbs else 'E'
+
+    return '{}_{}_{:05d}_{}_{}{}.sdf'.format(
+        source, date, obsnum, filter_, survey_code, reductiontype)

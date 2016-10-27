@@ -21,7 +21,7 @@ class TransientTransfer(CustomJobTransfer):
         """
 
         super(TransientTransfer, self).__init__(
-            vos_base='vos:jcmt-variability/EAO',
+            vos_base='vos:jcmt-variability',
             **kwargs)
 
     def determine_vos_directory(self, transdir, filename):
@@ -38,7 +38,7 @@ class TransientTransfer(CustomJobTransfer):
             return None
 
         m = re.match(
-            '^([-_A-Z0-9]+)_[0-9]{8}_[0-9]{5}_[48]50_E([AR][0-9]+)[._]',
+            '^([-_A-Z0-9]+)_[0-9]{8}_[0-9]{5}_[48]50_([EG])([AR][0-9]+)[._]',
             filename)
 
         if not m:
@@ -46,9 +46,16 @@ class TransientTransfer(CustomJobTransfer):
                 'Could not extract source name and reduction type '
                 'from file name "{}"'.format(filename))
 
-        (source, reductiontype) = m.groups()
+        (source, survey, reductiontype) = m.groups()
 
-        return '{}/{}_images'.format(source, reductiontype)
+        if survey == 'E':
+            survey_dir = 'EAO'
+        elif survey == 'G':
+            survey_dir = 'GBS/results'
+        else:
+            raise Exception('Unrecognised survey code {}'.format(survey))
+
+        return '{}/{}/{}_images'.format(survey_dir, source, reductiontype)
 
 
 if __name__ == '__main__':
