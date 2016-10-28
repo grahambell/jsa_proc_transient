@@ -37,7 +37,6 @@ else {
     $taco->import_module('jsa_proc_transient.gbs');
     my $gbs_objects = $taco->get_value('jsa_proc_transient.gbs.gbs_objects');
 
-    my %project_objects = ();
     foreach my $object (values %$gbs_objects) {
         foreach my $proj_obs (@$object) {
             my ($project, $object) = @$proj_obs;
@@ -91,7 +90,7 @@ foreach my $project (@projects) {
                 my $subsyshdr = $subsys->hdrhash();
                 my $object = $subsyshdr->{'OBJECT'};
 
-                if (%project_objects) {
+                if (scalar keys %project_objects) {
                     unless (exists $project_objects{$project}->{$object}) {
                         log_message("Skipping unwanted object $object.\n");
                         next;
