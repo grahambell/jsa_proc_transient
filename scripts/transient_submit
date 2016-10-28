@@ -7,6 +7,7 @@ use warnings;
 
 use Getopt::Long;
 use File::Basename;
+use Alien::Taco;
 
 use JSA::Submission qw/
     %BAD_OBSIDSS %JUNK_OBSIDSS
@@ -24,15 +25,31 @@ die 'Could not process command line options'
         'gbs'       => \$gbs,
     );
 
-my @projects = $gbs
-    ? qw/MJLSG22 MJLSG31 MJLSG32 MJLSG33 MJLSG38 MJLSG41/
-    : qw/M16AL001/;
+my (@projects, @reductions, $priority, %project_objects);
 
-my @reductions = $gbs
-    ? qw/R1 R2/
-    : qw/R1 R2 R3 R4/;
+unless ($gbs) {
+    @projects = qw/M16AL001/;
+    @reductions = qw/R1 R2 R3 R4/;
+    $priority = 100;
+}
+else {
+    my $taco = new Alien::Taco(lang => 'python');
+    $taco->import_module('jsa_proc_transient.gbs');
+    my $gbs_objects = $taco->get_value('jsa_proc_transient.gbs.gbs_objects');
 
-my $priority = $gbs ? -100 : 100;
+    my %project_objects = ();
+    foreach my $object (values %$gbs_objects) {
+        foreach my $proj_obs (@$object) {
+            my ($project, $object) = @$proj_obs;
+            $project_objects{$project} //= {};
+            $project_objects{$project}->{$object} = 1;
+        }
+    }
+
+    @projects = keys %project_objects;
+    @reductions = qw/R1 R2/;
+    $priority = -100;
+}
 
 my $task = 'lap-transient';
 my $only_info = 0;
@@ -72,6 +89,16 @@ foreach my $project (@projects) {
                 next if exists $JUNK_OBSIDSS{$obsidss};
 
                 my $subsyshdr = $subsys->hdrhash();
+                my $object = $subsyshdr->{'OBJECT'};
+
+                if (%project_objects) {
+                    unless (exists $project_objects{$project}->{$object}) {
+                        log_message("Skipping unwanted object $object.\n");
+                        next;
+                    }
+                }
+
+
                 push @obsinfo, create_obsinfo_hash($obs, $subsyshdr);
 
                 push @files, map {basename($_)} $subsys->filename();
