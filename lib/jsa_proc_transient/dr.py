@@ -394,28 +394,23 @@ def create_png_previews(filename, resolutions=[64, 256, 1024], tries=10):
     for resolution in resolutions:
         preview = '{}_{}.png'.format(filename[:-4], resolution)
 
-        for try_ in range(tries):
-            logger.debug(
-                'Making preview (%i) of file %s', resolution, filename)
+        logger.debug(
+            'Making preview (%i) of file %s', resolution, filename)
 
-            subprocess.check_call(
-                [
-                    '/bin/bash',
-                    os.path.expandvars('$ORAC_DIR/etc/picard_start.sh'),
-                    'CREATE_PNG',
-                    '--recpars=RESOLUTION={}'.format(resolution),
-                    '--log', 's', '--nodisp',
-                    filename,
-                ],
-                shell=False)
+        subprocess.check_call(
+            [
+                '/bin/bash',
+                os.path.expandvars('$ORAC_DIR/etc/picard_start.sh'),
+                'CREATE_PNG',
+                '--recpars=RESOLUTION={}'.format(resolution),
+                '--log', 's', '--nodisp',
+                filename,
+            ],
+            shell=False)
 
-            if os.path.exists(preview):
-                break
-
-        else:
+        if not os.path.exists(preview):
             raise Exception(
-                'Failed to make preview {} after {} attempts'.format(
-                    preview, tries))
+                'Failed to make preview {}'.format(preview))
 
         previews.append(preview)
 
