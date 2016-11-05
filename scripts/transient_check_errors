@@ -1,0 +1,107 @@
+#!/usr/bin/env python2
+
+from __future__ import absolute_import, division, print_function
+
+import logging
+import os
+import shutil
+import re
+import subprocess
+import sys
+
+from jsa_proc.admin.directories import get_log_dir
+from jsa_proc.config import get_database
+from jsa_proc.state import JSAProcState
+
+# Add relative library directory to path.
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.dirname(sys.argv[0])), 'lib'))
+
+pattern_start = re.compile('INFO:jsa_proc_transient.dr:Performing (\d+)um (R\d) reduction for ([-_A-Z0-9]+) on (\d{8})')
+pattern_no_catalog = re.compile('Exception: CUPID did not generate catalog')
+pattern_no_match = re.compile('Exception: Pointing offsets not found')
+pattern_makemap_error = re.compile('subprocess.CalledProcessError: Command \'\\[\'/net/kamaka/export/data/stardev-stable/bin/smurf/makemap\'')
+pattern_no_reference = re.compile('Exception: Reference file ".*" not found')
+
+
+def main():
+    db = get_database()
+
+    for job in db.find_jobs(task='lap-transient',
+                            state=JSAProcState.ERROR):
+        # Get the full job record -- the info record isn't enough in this case.
+        job = db.get_job(job.id)
+
+        # Only include jobs which failed from the RUNNING state.
+        if job.state_prev != JSAProcState.RUNNING:
+            continue
+
+        # Find the most recent log file.
+        log_dir = get_log_dir(job.id)
+        wrapdr_logs = []
+        for file_ in os.listdir(log_dir):
+            if file_.startswith('jsawrapdr_'):
+                wrapdr_logs.append(file_)
+
+        if not wrapdr_logs:
+            raise Exception(
+                'No wrapdr log files found for job {}'.format(job.id))
+
+        # Read the log file
+        last_log = sorted(wrapdr_logs)[-1]
+        log_path_name = os.path.join(log_dir, last_log)
+
+        found_stderr = False
+        filter_ = None
+        reduction_type = None
+        source_name = None
+        date = None
+
+        with open(log_path_name, 'r') as f:
+            reason = None
+
+            for line in f:
+                line = line.strip()
+
+                # Wait until we see the line marking the start of STDERR.
+                if line == '*** All output from STDERR:':
+                    found_stderr = True
+                    continue
+                if not found_stderr:
+                    continue
+
+                # Look for the log line indicating the start of a reduction.
+                m = pattern_start.match(line)
+                if m:
+                    (filter_, reduction_type, source_name, date) = m.groups()
+                    continue
+
+                # Look for error reasons.
+                if pattern_no_catalog.match(line):
+                    reason = 'no catalog generated'
+                    break
+
+                if pattern_no_match.match(line):
+                    reason = 'no match'
+                    break
+
+                if pattern_makemap_error.match(line):
+                    reason = 'makemap error'
+                    break
+
+                if pattern_no_reference.match(line):
+                    reason = 'no reference file'
+
+            if filter_ is None:
+                raise Exception(
+                    'Could not identify reduction from {}'.format(log_path_name))
+
+            if reason is None:
+                raise Exception(
+                    'Could not find failure reason in {}'.format(log_path_name))
+
+            print(job.id, source_name, reduction_type, filter_, date, reason)
+
+
+if __name__ == '__main__':
+    main()
