@@ -59,6 +59,6 @@ def get_field_name(source_name):
     for (field, sources) in gbs_objects.items():
         for (project, field_source_name) in sources:
             if source_name == field_source_name:
-                return field
+                return field.upper()
 
     raise Exception('Unexpected source name "{}"'.format(source_name))
