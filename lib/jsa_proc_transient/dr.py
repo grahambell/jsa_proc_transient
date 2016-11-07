@@ -187,6 +187,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 
     # Prepare environment.
     os.environ['SMURF_THREADS'] = '16'
+    os.environ['ADAM_EXIT'] = '1'
 
     output_files = []
 
