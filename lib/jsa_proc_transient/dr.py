@@ -49,7 +49,8 @@ kernel_fwhm = float(kernel[:-4].split('_')[-1])
 
 
 def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat,
-                       dimmconfig_850=None, dimmconfig_450=None):
+                       dimmconfig_850=None, dimmconfig_450=None,
+                       fixed_dra=None, fixed_ddec=None):
     """
     Take in a list of input files from a single observation and
     the reduction type (e.g. 'R1', 'R2' etc).
@@ -66,6 +67,18 @@ def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat,
     if not os.path.exists(kernel):
         raise Exception('Kernel file "{}" not found'.format(kernel))
 
+    # Check for fixed offsets.
+    offsetsfile = None
+    is_kevin = False
+    if (fixed_dra is not None) and (fixed_ddec is not None):
+        offsetsfile = 'fixed_offset.txt'
+        create_pointing_offsets(
+            offsetsfile, fixed_dra, fixed_ddec, system='TRACKING')
+        is_kevin = True
+
+    elif (fixed_dra is not None) or (fixed_ddec is not None):
+        raise Exception('Only one of "dra" and "ddec" was supplied')
+
     # Organize input files into subsystems.
     logger.debug('Organizing input files by subsystem')
     subsystems = {450: [], 850: []}
@@ -80,30 +93,28 @@ def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat,
             raise Exception(
                 'Did not recognise raw file name "{}"'.format(file_basename))
 
-    if not subsystems[850]:
-        raise Exception('No 850um data files given')
-
     output_files = []
 
-    logger.debug('Performing 850um analysis')
-    output_files.extend(transient_analysis_subsystem(
-        subsystems[850], reductiontype, '850', None,
-        install_catalog_as_ref=as_ref_cat,
-        dimmconfig=dimmconfig_850))
+    if subsystems[850]:
+        logger.debug('Performing 850um analysis')
+        output_files.extend(transient_analysis_subsystem(
+            subsystems[850], reductiontype, '850', offsetsfile,
+            install_catalog_as_ref=as_ref_cat,
+            dimmconfig=dimmconfig_850, is_kevin=is_kevin))
 
-    if subsystems[450]:
+    elif offsetsfile is None:
+        raise Exception('No 850um data files or fixed offsets given')
+
+    if offsetsfile is None:
         # Offsets file should have been first given.
         offsetsfile = output_files[0]
 
-        if not offsetsfile.endswith('_offset.txt'):
-            raise Exception(
-                'File "{}" does not look like an offsets file'.format(
-                    offsetsfile))
-
+    if subsystems[450]:
+        logger.debug('Performing 450um analysis')
         output_files.extend(transient_analysis_subsystem(
             subsystems[450], reductiontype, '450', offsetsfile,
             expect_missing_catalog=no_450_cat,
-            dimmconfig=dimmconfig_450))
+            dimmconfig=dimmconfig_450, is_kevin=is_kevin))
 
     return output_files
 
@@ -111,7 +122,7 @@ def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat,
 def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
                                  offsetsfile, expect_missing_catalog=False,
                                  install_catalog_as_ref=False,
-                                 dimmconfig=None):
+                                 dimmconfig=None, is_kevin=False):
     """
     Take in a list of input files from one subsystem of a single observation
     and the reduction type (e.g. 'R1', 'R2' etc).
@@ -204,7 +215,8 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 
         # Create output file name.
         out = get_filename_output(
-            source, date, obsnum, filter_, reductiontype, False, is_gbs)
+            source, date, obsnum, filter_, reductiontype, False,
+            is_gbs, is_kevin)
 
         # run makemap
         logger.debug('Running MAKEMAP, output: "%s"', out)
@@ -274,9 +286,14 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 
         output_files.extend(create_png_previews(out))
 
+    elif not offsetsfile.endswith('_offset.txt'):
+        raise Exception(
+            'File "{}" does not look like an offsets file'.format(
+                offsetsfile))
+
     # Re reduce map with pointing offset.
     out = get_filename_output(
-        source, date, obsnum, filter_, reductiontype, True, is_gbs)
+        source, date, obsnum, filter_, reductiontype, True, is_gbs, is_kevin)
 
     logger.debug('Running MAKEMAP, output: "%s"', out)
     subprocess.check_call(
@@ -456,10 +473,17 @@ def get_filename_ref_cat(source, filter_, reductiontype):
 
 
 def get_filename_output(source, date, obsnum, filter_, reductiontype, aligned,
-                        is_gbs):
-    # Change 1st letter of reduction type ('R') to 'A' for aligned map.
-    if aligned:
-        reductiontype = 'A' + reductiontype[1:]
+                        is_gbs, is_kevin):
+    if is_kevin:
+        if aligned:
+            # Change 1st letter of reduction type ('K') to 'A' for aligned map.
+            reductiontype = 'K' + reductiontype[1:]
+        else:
+            raise Exception('Making non-aligned filename in "Kevin" mode')
+    else:
+        # Change 1st letter of reduction type ('R') to 'A' for aligned map.
+        if aligned:
+            reductiontype = 'A' + reductiontype[1:]
 
     # Add 'E' (for EAO) prefix to reduction type, or 'G' for GBS data.
     survey_code = 'G' if is_gbs else 'E'
