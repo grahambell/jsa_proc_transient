@@ -57,9 +57,11 @@ if (defined $reduction_str) {
     @reductions = split ',', $reduction_str;
 }
 
+my $tag_extra = '';
 my $offset = undef;
 if (defined $offset_file) {
     $offset = read_offset_file($offset_file);
+    $tag_extra = '-K';
 }
 
 my $task = 'lap-transient';
@@ -137,7 +139,8 @@ foreach my $project (@projects) {
 
                 foreach my $reduction (@reductions) {
                     my $tag = $task . "-" . $obs->obsid
-                                    . "-" . $reduction;
+                                    . "-" . $reduction
+				    . $tag_extra;
 
                     foreach my $obsinfo (@obsinfo) {
                         $obsinfo->{'association'} = $tag;
