@@ -114,7 +114,7 @@ foreach my $project (@projects) {
 
                 if (defined $offset) {
                     my $offset_key = sprintf(
-                        '%8d_%5d',
+                        '%8d_%05d',
                         $subsyshdr->{'UTDATE'},
                         $subsyshdr->{'OBSNUM'});
 
