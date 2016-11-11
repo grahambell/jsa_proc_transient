@@ -6,6 +6,7 @@ use strict;
 use warnings;
 
 use Getopt::Long;
+use IO::File;
 use File::Basename;
 use Alien::Taco;
 
@@ -17,12 +18,14 @@ use JSA::Proc qw/add_jsa_proc_jobs create_obsinfo_hash/;
 use OMP::Info::Obs;
 use OMP::Constants qw/:obs/;
 
-my ($ut, $dry_run, $gbs);
+my ($ut, $dry_run, $gbs, $reduction_str, $offset_file);
 die 'Could not process command line options'
     unless GetOptions(
-        'dry-run'   => \$dry_run,
-        'ut=s'      => \$ut,
-        'gbs'       => \$gbs,
+        'dry-run'     => \$dry_run,
+        'ut=s'        => \$ut,
+        'gbs'         => \$gbs,
+        'reduction=s' => \$reduction_str,
+        'offsets=s'   => \$offset_file,
     );
 
 my (@projects, @reductions, $priority, %project_objects);
@@ -48,6 +51,15 @@ else {
     @projects = keys %project_objects;
     @reductions = qw/R1 R2/;
     $priority = -100;
+}
+
+if (defined $reduction_str) {
+    @reductions = split ',', $reduction_str;
+}
+
+my $offset = undef;
+if (defined $offset_file) {
+    $offset = read_offset_file($offset_file);
 }
 
 my $task = 'lap-transient';
@@ -77,6 +89,7 @@ foreach my $project (@projects) {
 
             my @files = ();
             my @obsinfo = ();
+            my @offset_args = ();
 
             for my $subsys ($obs->subsystems()) {
                 my @all_obsidss = $subsys->obsidss;
@@ -97,6 +110,21 @@ foreach my $project (@projects) {
                     }
                 }
 
+                if (defined $offset) {
+                    my $offset_key = sprintf(
+                        '%8d_%5d',
+                        $subsyshdr->{'UTDATE'},
+                        $subsyshdr->{'OBSNUM'});
+
+                    unless (exists $offset->{$offset_key}) {
+                        log_message("Skipping obs without offset: $obsidss\n");
+                        next;
+                    }
+
+                    my $offset_radec = $offset->{$offset_key};
+                    @offset_args = ('--dra', $offset_radec->[0],
+                                    '--ddec', $offset_radec->[1]);
+                }
 
                 push @obsinfo, create_obsinfo_hash($obs, $subsyshdr);
 
@@ -104,6 +132,9 @@ foreach my $project (@projects) {
             }
 
             if (scalar @files) {
+                # Combine arguments in case we (in future) have multiple sets.
+                my @extra_args = @offset_args;
+
                 foreach my $reduction (@reductions) {
                     my $tag = $task . "-" . $obs->obsid
                                     . "-" . $reduction;
@@ -112,10 +143,16 @@ foreach my $project (@projects) {
                         $obsinfo->{'association'} = $tag;
                     }
 
+                    my $params = $reduction;
+
+                    if (@extra_args) {
+                        $params .= ' -- '. join(' ', @extra_args);
+                    }
+
                     $groups{$tag} = {
                         mode => 'obs',
                         task => $task,
-                        drparams => $reduction,
+                        drparams => $params,
                         files => \@files,
                         obsinfolist => \@obsinfo,
                     };
@@ -128,3 +165,22 @@ foreach my $project (@projects) {
 }
 
 exit;
+
+
+sub read_offset_file {
+    my $filename = shift;
+    my %offset = ();
+    my $fh = new IO::File($filename, 'r');
+
+    foreach (<$fh>) {
+        chomp;
+        next if /^REF/ or /^---/;
+        my (undef, $id, $dra, $ddec) = split /\t/;
+        die 'did not understand ID' unless $id =~ /_(\d{8}_\d{5})$/;
+        $offset{$1} = [$dra, $ddec];
+    }
+
+    $fh->close();
+
+    return \%offset;
+}
