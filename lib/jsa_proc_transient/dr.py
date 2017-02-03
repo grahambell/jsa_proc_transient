@@ -175,7 +175,8 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     mask_reductiontype = maskdict.get(reductiontype)
     if mask_reductiontype is not None:
         # Use the appropriate mask as the reference image.
-        reference = get_filename_mask(field_name, filter_, mask_reductiontype)
+        reference = get_filename_mask(
+            source, filter_, mask_reductiontype, is_gbs)
         if not os.path.exists(reference):
             raise Exception('Mask file "{}" not found'.format(reference))
     else:
@@ -454,10 +455,12 @@ def safe_object_name(name):
     return name.upper()
 
 
-def get_filename_mask(source, filter_, reductiontype):
+def get_filename_mask(source, filter_, reductiontype, is_gbs):
+    pattern = '{}_GBS_extmask_{}_{}.sdf' if is_gbs else '{}_extmask_{}_{}.sdf'
+
     return os.path.join(
         data_dir, 'mask',
-        '{}_extmask_{}_{}.sdf'.format(source, filter_, reductiontype))
+        pattern.format(source, filter_, reductiontype))
 
 
 def get_filename_reference(source, filter_):
