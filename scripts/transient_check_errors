@@ -22,6 +22,7 @@ pattern_no_catalog = re.compile('Exception: CUPID did not generate catalog')
 pattern_no_match = re.compile('Exception: Pointing offsets not found')
 pattern_makemap_error = re.compile('subprocess.CalledProcessError: Command \'\\[\'/net/kamaka/export/data/stardev-stable/bin/smurf/makemap\'')
 pattern_no_reference = re.compile('Exception: Reference file ".*" not found')
+pattern_missing_mask = re.compile('Exception: Mask file "[^"]*/([^"/]*)" not found')
 
 
 def main():
@@ -91,6 +92,12 @@ def main():
 
                 if pattern_no_reference.match(line):
                     reason = 'no reference file'
+                    break
+
+                m = pattern_missing_mask.match(line)
+                if m:
+                    reason = 'missing mask: {}'.format(m.group(1))
+                    break
 
             if filter_ is None:
                 raise Exception(
