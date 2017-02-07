@@ -146,7 +146,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
         raise Exception('Unexpected value of FILTER header')
 
     project = header['PROJECT']
-    if project == 'M16AL001':
+    if (project == 'M16AL001') or re.match('M\d\d[AB]EC30', project):
         is_gbs = False
         field_name = source
     elif project.startswith('MJLSG'):
