@@ -18,7 +18,7 @@ sys.path.append(
     os.path.join(os.path.dirname(os.path.dirname(sys.argv[0])), 'lib'))
 
 pattern_start = re.compile('INFO:jsa_proc_transient.dr:Performing (\d+)um (R\d) reduction for ([-_A-Z0-9]+) on (\d{8})')
-pattern_no_catalog = re.compile('Exception: CUPID did not generate catalog')
+pattern_no_catalog = re.compile('Exception: CUPID did not generate catalog.*\d{8}_\d{5}_(\d{3})_')
 pattern_no_match = re.compile('Exception: Pointing offsets not found')
 pattern_makemap_error = re.compile('subprocess.CalledProcessError: Command \'\\[\'/net/kamaka/export/data/stardev-stable/bin/smurf/makemap\'')
 pattern_no_reference = re.compile('Exception: Reference file ".*" not found')
@@ -78,8 +78,9 @@ def main():
                     continue
 
                 # Look for error reasons.
-                if pattern_no_catalog.match(line):
-                    reason = 'no catalog generated'
+                m = pattern_no_catalog.match(line)
+                if m:
+                    reason = 'no catalog generated: {}'.format(m.group(1))
                     break
 
                 if pattern_no_match.match(line):
