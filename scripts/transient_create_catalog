@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+
+from __future__ import absolute_import, division, print_function
+
+from codecs import ascii_decode
+import logging
+import os
+import re
+import shutil
+import sys
+
+from astropy.io import fits
+from starlink.ndfpack import Ndf
+
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.dirname(sys.argv[0])), 'lib'))
+
+from transientclumps.TCGaussclumpsFunctions import run_gaussclumps
+from transientclumps.TCPrepFunctions import prepare_image
+from jsa_proc_transient.dr import \
+    get_filename_ref_cat, get_prepare_parameters, safe_object_name
+
+logging.basicConfig(level=logging.DEBUG)
+
+
+def main():
+    is_reference = False
+    if (len(sys.argv) > 2) and (sys.argv[1] == '--ref'):
+        input_map = sys.argv[2]
+        is_reference = True
+    elif len(sys.argv) == 2:
+        input_map = sys.argv[1]
+    else:
+        raise Exception('Usage: {} [--ref] <map>'.format(sys.argv[0]))
+
+    filter_ = get_filter(input_map)
+    reduction_type = get_reduction_type(input_map)
+
+    header = fits.Header.fromstring(''.join(
+        ascii_decode(x)[0] for x in Ndf(input_map).head['FITS']))
+
+    raw_source = header['OBJECT']
+    source = safe_object_name(raw_source)
+
+    if filter_ != header['FILTER']:
+        raise Exception('Unexpected value of FILTER header')
+
+    prepare_kwargs = get_prepare_parameters(filter_)
+
+    config_dir = os.path.dirname(sys.modules['transientclumps'].__file__)
+    param_file = os.path.join(config_dir, 'data', 'parameters', 'GCParms.txt')
+    if not os.path.exists(param_file):
+        raise Exception('Configuration file "{}" not found'.format(param_file))
+    param_file_copy = shutil.copy(param_file, '.')
+
+    prepare_image(input_map, **prepare_kwargs)
+    prepared_file = input_map[:-4]+'_crop_smooth_jypbm.sdf'
+
+    run_gaussclumps(prepared_file, param_file_copy)
+    sourcecatalog = prepared_file[:-4] + '_log.FIT'
+
+    if not os.path.exists(sourcecatalog):
+        raise Exception(
+            'CUPID did not generate catalog "{}"'.format(sourcecatalog))
+
+    if is_reference:
+        reference_name = os.path.basename(get_filename_ref_cat(
+            source, filter_, reduction_type))
+
+        shutil.move(sourcecatalog, reference_name)
+        sourcecatalog = reference_name
+
+    print('Generated catalog: {}'.format(sourcecatalog))
+
+
+def get_filter(filename):
+    m = re.search('_([48]50)_', filename)
+
+    if not m:
+        raise Exception(
+            'Could not find filter in filename "{}"'.format(filename))
+
+    return m.group(1)
+
+
+def get_reduction_type(filename):
+    m = re.search('_E(R[1234])\.', filename)
+
+    if not m:
+        raise Exception(
+            'Could not find reduction type in filename "{}"'.format(filename))
+
+    return m.group(1)
+
+
+if __name__ == '__main__':
+    main()
