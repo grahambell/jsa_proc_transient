@@ -286,6 +286,14 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
             ],
             shell=False,
             stdout=sys.stderr)
+        subprocess.check_call(
+            [
+                os.path.expandvars('$KAPPA_DIR/setunits'),
+                'ndf={}'.format(out_cal),
+                'units=mJy/arcsec**2',
+            ],
+            shell=False,
+            stdout=sys.stderr)
 
         output_files.extend([offsetsfile, out_cal, sourcecatalog])
 
@@ -349,6 +357,14 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
             'in={}'.format(out),
             'out={}'.format(out_cal),
             'scalar={}'.format(get_fcf_arcsec(filter_) * 1000.0),
+        ],
+        shell=False,
+        stdout=sys.stderr)
+    subprocess.check_call(
+        [
+            os.path.expandvars('$KAPPA_DIR/setunits'),
+            'ndf={}'.format(out_cal),
+            'units=mJy/arcsec**2',
         ],
         shell=False,
         stdout=sys.stderr)
