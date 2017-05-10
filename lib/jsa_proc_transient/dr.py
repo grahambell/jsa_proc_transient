@@ -221,6 +221,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 
         # run makemap
         logger.debug('Running MAKEMAP, output: "%s"', out)
+        sys.stderr.flush()
         subprocess.check_call(
             [
                 os.path.expandvars('$SMURF_DIR/makemap'),
@@ -228,9 +229,10 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
                 'config=^{}'.format(dimmconfig),
                 'out={}'.format(out),
                 'ref={}'.format(reference),
-                'msg_filter=none',
+                'msg_filter=normal',
             ],
-            shell=False)
+            shell=False,
+            stdout=sys.stderr)
 
         if not os.path.exists(out):
             raise Exception('MAKEMAP did not generate output "{}"'.format(out))
@@ -274,6 +276,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
         # Apply FCF calibration.
         out_cal = out[:-4] + '_cal.sdf'
         logger.debug('Calibrating file "%s" (making "%s")', out, out_cal)
+        sys.stderr.flush()
         subprocess.check_call(
             [
                 os.path.expandvars('$KAPPA_DIR/cmult'),
@@ -281,7 +284,8 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
                 'out={}'.format(out_cal),
                 'scalar={}'.format(get_fcf_arcsec(filter_) * 1000.0),
             ],
-            shell=False)
+            shell=False,
+            stdout=sys.stderr)
 
         output_files.extend([offsetsfile, out_cal, sourcecatalog])
 
@@ -297,6 +301,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
         source, date, obsnum, filter_, reductiontype, True, is_gbs, is_kevin)
 
     logger.debug('Running MAKEMAP, output: "%s"', out)
+    sys.stderr.flush()
     subprocess.check_call(
         [
             os.path.expandvars('$SMURF_DIR/makemap'),
@@ -305,9 +310,10 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
             'out={}'.format(out),
             'ref={}'.format(reference),
             'pointing={}'.format(offsetsfile),
-            'msg_filter=none',
+            'msg_filter=normal',
         ],
-        shell=False)
+        shell=False,
+        stdout=sys.stderr)
 
     if not os.path.exists(out):
         raise Exception('MAKEMAP did not generate output "{}"'.format(out))
@@ -336,6 +342,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     # Apply FCF calibration.
     out_cal = out[:-4] + '_cal.sdf'
     logger.debug('Calibrating file "%s" (making "%s")', out, out_cal)
+    sys.stderr.flush()
     subprocess.check_call(
         [
             os.path.expandvars('$KAPPA_DIR/cmult'),
@@ -343,7 +350,8 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
             'out={}'.format(out_cal),
             'scalar={}'.format(get_fcf_arcsec(filter_) * 1000.0),
         ],
-        shell=False)
+        shell=False,
+        stdout=sys.stderr)
 
     output_files.append(out_cal)
 
@@ -425,7 +433,8 @@ def create_png_previews(filename, resolutions=[64, 256, 1024], tries=10):
                 '--log', 's', '--nodisp',
                 filename,
             ],
-            shell=False)
+            shell=False,
+            stdout=sys.stderr)
 
         if not os.path.exists(preview):
             raise Exception(

@@ -99,4 +99,5 @@ class TransientRun(CustomJobRun):
 
 
 if __name__ == '__main__':
+    sys.stdout = sys.stderr
     TransientRun(program_name=program_name).run()
