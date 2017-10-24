@@ -145,13 +145,18 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     if filter_ != header['FILTER']:
         raise Exception('Unexpected value of FILTER header')
 
+    is_gbs = False
+    survey_code = None
     project = header['PROJECT']
     if (project == 'M16AL001') or re.match('M\d\d[AB]EC30', project):
-        is_gbs = False
         field_name = source
     elif project.startswith('MJLSG'):
         is_gbs = True
         field_name = gbs_field_name(raw_source)
+        survey_code = 'G'
+    elif project == 'M17BP054':
+        field_name = source
+        survey_code = 'H'
     else:
         raise Exception('Unexpected project value "{}"'.format(project))
 
@@ -217,7 +222,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
         # Create output file name.
         out = get_filename_output(
             source, date, obsnum, filter_, reductiontype, False,
-            is_gbs, is_kevin)
+            survey_code, is_kevin)
 
         # run makemap
         logger.debug('Running MAKEMAP, output: "%s"', out)
@@ -306,7 +311,8 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 
     # Re reduce map with pointing offset.
     out = get_filename_output(
-        source, date, obsnum, filter_, reductiontype, True, is_gbs, is_kevin)
+        source, date, obsnum, filter_, reductiontype, True, survey_code,
+        is_kevin)
 
     logger.debug('Running MAKEMAP, output: "%s"', out)
     sys.stderr.flush()
@@ -501,7 +507,7 @@ def get_filename_ref_cat(source, filter_, reductiontype):
 
 
 def get_filename_output(source, date, obsnum, filter_, reductiontype, aligned,
-                        is_gbs, is_kevin):
+                        survey_code, is_kevin):
     if is_kevin:
         if aligned:
             # Change 1st letter of reduction type ('K') to 'A' for aligned map.
@@ -514,7 +520,7 @@ def get_filename_output(source, date, obsnum, filter_, reductiontype, aligned,
             reductiontype = 'A' + reductiontype[1:]
 
     # Add 'E' (for EAO) prefix to reduction type, or 'G' for GBS data.
-    survey_code = 'G' if is_gbs else 'E'
+    survey_code = 'E' if (survey_code is None) else survey_code
 
     return '{}_{}_{:05d}_{}_{}{}.sdf'.format(
         source, date, obsnum, filter_, survey_code, reductiontype)

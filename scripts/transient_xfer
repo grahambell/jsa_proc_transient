@@ -38,7 +38,7 @@ class TransientTransfer(CustomJobTransfer):
             return None
 
         m = re.match(
-            '^([-_A-Z0-9]+)_[0-9]{8}_[0-9]{5}_[48]50_([EG])([AKR][0-9]+)[._]',
+            '^([-_A-Z0-9]+)_[0-9]{8}_[0-9]{5}_[48]50_([EGH])([AKR][0-9]+)[._]',
             filename)
 
         if not m:
@@ -52,6 +52,9 @@ class TransientTransfer(CustomJobTransfer):
             survey_dir = 'EAO'
         elif survey == 'G':
             survey_dir = 'GBS/results'
+        elif survey == 'H':
+            return '{}/{}/M17BP054/{}_images'.format(
+                'EAO', source, reductiontype)
         else:
             raise Exception('Unrecognised survey code {}'.format(survey))
 

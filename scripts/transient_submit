@@ -18,7 +18,8 @@ use JSA::Proc qw/add_jsa_proc_jobs create_obsinfo_hash/;
 use OMP::Info::Obs;
 use OMP::Constants qw/:obs/;
 
-my ($ut, $observation, $dry_run, $gbs, $ec, $reduction_str, $offset_file);
+my ($ut, $observation, $dry_run, $gbs, $ec, $reduction_str, $offset_file,
+    $pi_project);
 die 'Could not process command line options'
     unless GetOptions(
         'dry-run'     => \$dry_run,
@@ -28,6 +29,7 @@ die 'Could not process command line options'
         'ec'          => \$ec,
         'reduction=s' => \$reduction_str,
         'offsets=s'   => \$offset_file,
+        'piproject=s' => \$pi_project,
     );
 
 my (@projects, @reductions, $priority, %project_objects);
@@ -56,6 +58,11 @@ elsif ($ec) {
 
     die 'Please specify observation number for E&C data submission'
         unless defined $observation;
+}
+elsif (defined $pi_project) {
+    @projects = ($pi_project);
+    @reductions = qw/R1 R2 R3 R4/;
+    $priority = 100;
 }
 else {
     @projects = qw/M16AL001/;
