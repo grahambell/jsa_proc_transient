@@ -1,0 +1,94 @@
+#!/usr/bin/env starperl
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+use Alien::Taco;
+
+my ($dry_run, $reduction_str);
+
+die 'Could not process options'
+    unless GetOptions(
+        'dry-run' => \$dry_run,
+        'reduction=s' => \$reduction_str,
+    );
+
+my $task_parent = 'lap-transient';
+my $task = $task_parent . '-cal';
+my $priority = 110;
+
+my @reductions;
+if (defined $reduction_str) {
+    @reductions = split ',', $reduction_str;
+}
+else {
+    @reductions = qw/R3/;
+}
+
+my $taco = new Alien::Taco(lang => 'python');
+$taco->import_module('logging');
+$taco->call_function('logging.basicConfig',
+    kwargs => {level => $taco->get_value('logging.INFO')});
+
+$taco->import_module('jsa_proc.config', args => ['get_database']);
+$taco->import_module('jsa_proc.submit.update', args => ['add_upd_del_job']);
+my $db = $taco->call_function('get_database');
+
+my @jobs = $db->call_method('find_jobs', kwargs => {
+    task => $task_parent,
+    outputs => '%.sdf.gz',
+});
+
+my %reduction_source_jobs = map {$_ => {}} @reductions;
+
+JOB: foreach my $job (@jobs) {
+    my ($id, $tag, $state, undef, undef, undef, undef, $outputs) = @$job;
+    next if $state eq 'E';
+
+    my %reductions = ();
+    foreach my $reduction (@reductions) {
+        $reductions{$reduction} ++ if substr($tag, -3,3) eq '-' . $reduction;
+    }
+
+    next unless 0 < scalar keys %reductions;
+    die "Job $id($state) has multiple reductions" if 1 < scalar keys %reductions;
+
+    my ($reduction) = keys %reductions;
+
+    my %sources = ();
+    foreach my $output (@$outputs) {
+        die 'Unrecognized output: ' . $output
+            unless $output =~ /^(.*)_\d{8}_\d{5}_(?:850|450)_([EGH])(?:A|R)\d\.sdf\.gz$/;
+
+        next JOB unless $2 eq 'E';
+        $sources{$1} ++;
+    }
+
+    die "Job $id($state) has multiple targets" if 1 < scalar keys %sources;
+    die "Job $id($state) has no targets" unless 0 < scalar keys %sources;
+
+    my ($source) = keys %sources;
+
+
+    $reduction_source_jobs{$reduction}->{$source} = []
+        unless exists $reduction_source_jobs{$reduction}->{$source};
+    push @{$reduction_source_jobs{$reduction}->{$source}}, $id;
+}
+
+while (my ($reduction, $source_jobs) = each %reduction_source_jobs) {
+    while (my ($source, $jobs) = each %$source_jobs) {
+        $taco->call_function('add_upd_del_job', kwargs => {
+            db => $db,
+            tag => join('-', 'lap-transient', $source, $reduction, 'cal'),
+            location => 'JAC',
+            mode => 'project',
+            parameters => $reduction,
+            task => $task,
+            priority => $priority,
+            parent_jobs => $jobs,
+            filters => [('_EA\d(\.sdf.gz|_cat\.fits)') x scalar @$jobs],
+            dry_run => $dry_run,
+        });
+    }
+}
