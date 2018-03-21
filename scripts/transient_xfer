@@ -39,16 +39,21 @@ class TransientTransfer(CustomJobTransfer):
 
         # Assume suffix 'images' initially.
         suffix = 'images'
+        is_cal = False
 
         m = re.match(
             '^([-_A-Z0-9]+)_[0-9]{8}_[0-9]{5}_[48]50_([EGH])([AKR][0-9]+)[._]',
             filename)
 
         if not m:
-            # Try alternate log file pattern
+            # Try alternate (multi-observation) file pattern.
             m = re.match(
-                '^([-_A-Z0-9]+)_[48]50_([EGH])([AKR][0-9]+)_[a-z_]+.txt$',
+                '^([-_A-Z0-9]+)_[48]50_([EGH])([AKR][0-9]+)_',
                 filename)
+
+            # Assume all files matching this pattern should
+            # go in the _cal directory.
+            is_cal = True
 
         if not m:
             raise Exception(
@@ -58,7 +63,7 @@ class TransientTransfer(CustomJobTransfer):
         (source, survey, reductiontype) = m.groups()
 
         for part in ['_cal', '_match', '_cull']:
-            if part in filename:
+            if is_cal or part in filename:
                 suffix = suffix + '_cal'
                 break
 

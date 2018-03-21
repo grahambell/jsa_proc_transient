@@ -479,6 +479,8 @@ def transient_flux_calibration(inputfiles):
         prepare_kwargs = get_prepare_parameters(filter_, fcf_arcsec=0.001)
 
         log_lines = []
+        maps_cal = []
+        maps_smooth = []
 
         for (observation, calibration_factor, calibration_factor_error) in zip(
                 culled, calibration_factors, calibration_factor_errors):
@@ -517,6 +519,8 @@ def transient_flux_calibration(inputfiles):
                 shell=False,
                 stdout=sys.stderr)
 
+            maps_cal.append(map_cal)
+            maps_smooth.append(map_smooth)
             output_files.extend([map_cal, map_smooth])
 
             log_lines.append([
@@ -537,6 +541,19 @@ def transient_flux_calibration(inputfiles):
                 print(*line, file=f)
 
         output_files.append(log_file)
+
+        # Create co-adds of calibrated and smoothed maps.
+        coadd_cal = '{}_{}_{}{}_cal_coadd.sdf'.format(
+            field_name, filter_, survey_code, reductiontype)
+        create_coadded_map(maps_cal, coadd_cal)
+        output_files.append(coadd_cal)
+        output_files.extend(create_png_previews(coadd_cal))
+
+        coadd_smooth = '{}_{}_{}{}_cal_smooth_coadd.sdf'.format(
+            field_name, filter_, survey_code, reductiontype)
+        create_coadded_map(maps_smooth, coadd_smooth)
+        output_files.append(coadd_smooth)
+        output_files.extend(create_png_previews(coadd_smooth))
 
     return output_files
 
@@ -666,6 +683,28 @@ def create_png_previews(filename, resolutions=[64, 256, 1024], tries=10):
         previews.append(preview)
 
     return previews
+
+
+def create_coadded_map(maps, filename):
+    logger.debug('Creating co-add: %s', filename)
+
+    filelist = tempfile.NamedTemporaryFile(
+        mode='w', prefix='tmpList', delete=False)
+    filelist.file.writelines([x + '\n' for x in sorted(maps)])
+    filelist.file.close()
+
+    sys.stderr.flush()
+    subprocess.check_call(
+        [
+            os.path.expandvars('$KAPPA_DIR/wcsmosaic'),
+            'in=^{}'.format(filelist.name),
+            'out={}'.format(filename),
+            'lbnd=!',
+            'ubnd=!',
+            'ref=!',
+        ],
+        shell=False,
+        stdout=sys.stderr)
 
 
 def safe_object_name(name):
