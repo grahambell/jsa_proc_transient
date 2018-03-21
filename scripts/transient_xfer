@@ -60,6 +60,7 @@ class TransientTransfer(CustomJobTransfer):
         for part in ['_cal', '_match', '_cull']:
             if part in filename:
                 suffix = suffix + '_cal'
+                break
 
         if survey == 'E':
             survey_dir = 'EAO'
