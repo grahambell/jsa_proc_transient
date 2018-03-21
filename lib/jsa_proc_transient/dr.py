@@ -482,6 +482,10 @@ def transient_flux_calibration(inputfiles):
 
         for (observation, calibration_factor, calibration_factor_error) in zip(
                 culled, calibration_factors, calibration_factor_errors):
+            if calibration_factor is None:
+                logger.warning('No calibration factor for "%s"', map)
+                continue
+
             if not calibration_factor > 0:
                 logger.error('Calibration failed for "%s"', map)
                 continue
