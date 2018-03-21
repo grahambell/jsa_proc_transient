@@ -389,6 +389,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 def transient_flux_calibration(inputfiles):
     pattern = re.compile('^(.*)_(\d{8})_(\d{5})_(850|450)_E(A\d)$')
     output_files = []
+    survey_code = 'E'
 
     # Read "family" file.
     with open(os.path.join(data_dir, 'cal', 'family.json'), 'r') as f:
@@ -459,7 +460,8 @@ def transient_flux_calibration(inputfiles):
             (cat_match, cat_cull) = merge_observation_catalogs(
                 field_name=field_name, date=info['date'],
                 obsnum=obsnum, filter_=filter_,
-                reductiontype=reductiontype, cat=info['cat'])
+                reductiontype=reductiontype, cat=info['cat'],
+                survey_code=survey_code)
 
             info['culled'] = cat_cull
             culled.append(info)
@@ -535,7 +537,7 @@ def transient_flux_calibration(inputfiles):
 
 
 def merge_observation_catalogs(
-        field_name, date, obsnum, filter_, reductiontype, cat):
+        field_name, date, obsnum, filter_, reductiontype, cat, survey_code):
     reductiontype_orig = re.sub('^A', 'R', reductiontype)
     if reductiontype_orig not in dimmconfigdict:
         raise Exception(
@@ -556,16 +558,16 @@ def merge_observation_catalogs(
 
     match_results = source_match(cat, refcat, **match_kwargs)
 
-    cat_match = '{}_{}_{:05d}_{}_{}_match.FIT'.format(
-        field_name, date, obsnum, filter_, reductiontype)
+    cat_match = '{}_{}_{:05d}_{}_{}{}_match.FIT'.format(
+        field_name, date, obsnum, filter_, survey_code, reductiontype)
 
     merge_catalog(
         cat, refcat, date, obsnum, cat_match,
         ref_index=match_results[4],
         cat_index=match_results[5])
 
-    cat_cull = '{}_{}_{:05d}_{}_{}_cull.FIT'.format(
-        field_name, date, obsnum, filter_, reductiontype)
+    cat_cull = '{}_{}_{:05d}_{}_{}{}_cull.FIT'.format(
+        field_name, date, obsnum, filter_, survey_code, reductiontype)
 
     merge_catalog(
         cat, refcat, date, obsnum, cat_cull,
