@@ -36,36 +36,8 @@ class TransientCal(CustomJobRun):
         # Send all output to STDERR (so that jsawrapdr collects it).
         os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
 
-        # Process input files -- unzip .sdf.gz files.
-        filtered_inputs = []
-        for pathname in inputs:
-            (dirname, filename) = os.path.split(pathname)
-            (basename, extension) = os.path.splitext(filename)
-
-            if extension == '.gz' and basename.endswith('.sdf'):
-                logger.info('Decompressing SDF file "%s"', filename)
-                shutil.copyfile(pathname, filename)
-                subprocess.check_call(
-                    [
-                        '/bin/gunzip',
-                        filename,
-                    ],
-                    shell=False)
-                filtered_inputs.append(basename)
-
-            elif extension == '.fits':
-                logger.info('Getting FITS file "%s"', filename)
-                filename_copy = basename + '.fits'
-                shutil.copyfile(pathname, filename_copy)
-                filtered_inputs.append(filename_copy)
-
-            else:
-                logger.error(repr([pathname, filename, basename, extension]))
-                raise Exception('Unexpected input file "{}"'.format(filename))
-
         # Run calibration routine.
-        outputs = transient_flux_calibration(
-            inputfiles=filtered_inputs)
+        outputs = transient_flux_calibration(inputfiles=inputs)
 
         # Copy output files to transfer directory.
         for filename in outputs:
