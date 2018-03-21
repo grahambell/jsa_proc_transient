@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+
+from __future__ import absolute_import, division, print_function
+
+import logging
+import os
+import shutil
+import re
+import subprocess
+import sys
+
+from docopt import docopt
+
+# Add relative library directory to path.
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.dirname(sys.argv[0])), 'lib'))
+
+from jsa_proc.custom.run import CustomJobRun
+from jsa_proc_transient.dr import transient_analysis, transient_flux_calibration
+
+
+program_name = os.path.basename(sys.argv[0])
+logger = logging.getLogger(program_name)
+
+
+class TransientCal(CustomJobRun):
+    def run_processing(self, inputs, transdir, id_='unknown', parameters=[]):
+        """
+        Function to launch data processing.
+
+        :param inputs: list of input file names
+        :param transdir: target output directory
+        :param id: job identifier
+        """
+
+        # Send all output to STDERR (so that jsawrapdr collects it).
+        os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
+
+        # Process input files -- unzip .sdf.gz files.
+        filtered_inputs = []
+        for pathname in inputs:
+            (dirname, filename) = os.path.split(pathname)
+            (basename, extension) = os.path.splitext(filename)
+
+            if extension == '.gz' and basename.endswith('.sdf'):
+                logger.info('Decompressing SDF file "%s"', filename)
+                shutil.copyfile(pathname, filename)
+                subprocess.check_call(
+                    [
+                        '/bin/gunzip',
+                        filename,
+                    ],
+                    shell=False)
+                filtered_inputs.append(basename)
+
+            elif extension == '.fits':
+                logger.info('Getting FITS file "%s"', filename)
+                filename_copy = basename + '.fits'
+                shutil.copyfile(pathname, filename_copy)
+                filtered_inputs.append(filename_copy)
+
+            else:
+                logger.error(repr([pathname, filename, basename, extension]))
+                raise Exception('Unexpected input file "{}"'.format(filename))
+
+        # Run calibration routine.
+        outputs = transient_flux_calibration(
+            inputfiles=filtered_inputs)
+
+        # Copy output files to transfer directory.
+        for filename in outputs:
+            (basename, extension) = os.path.splitext(filename)
+
+            if extension == '.sdf':
+                filename_edited = re.sub(
+                    '_crop_smooth_jypbm$', '_smooth', basename) + '.sdf'
+                logger.info('Storing SDF file "%s" as "%s"',
+                            filename, filename_edited)
+                filename_trans = os.path.join(transdir, filename_edited)
+                shutil.copyfile(filename, filename_trans)
+                subprocess.check_call(
+                    [
+                        '/bin/gzip',
+                        '--best',
+                        filename_trans,
+                    ],
+                    shell=False)
+
+            elif extension == '.txt':
+                logger.info('Storing text file "%s"', filename)
+                shutil.copy(filename, transdir)
+
+            elif extension == '.png':
+                logger.info('Storing preview image "%s"', filename)
+                shutil.copy(filename, transdir)
+
+            elif extension == '.FIT':
+                filename_edited = basename + '.fits'
+                logger.info('Storing FITS file "%s" as "%s"',
+                            filename, filename_edited)
+                shutil.copyfile(
+                    filename, os.path.join(transdir, filename_edited))
+
+            else:
+                raise Exception('Unexpected output file "{}"'.format(filename))
+
+
+if __name__ == '__main__':
+    sys.stdout = sys.stderr
+    TransientCal(program_name=program_name).run()

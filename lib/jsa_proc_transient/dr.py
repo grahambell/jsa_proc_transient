@@ -1,6 +1,8 @@
 from __future__ import absolute_import
 
 from codecs import ascii_decode
+from collections import defaultdict
+import json
 import os
 import logging
 import re
@@ -15,6 +17,8 @@ from starlink.ndfpack import Ndf
 from transientclumps.TCOffsetFunctions import source_match
 from transientclumps.TCGaussclumpsFunctions import run_gaussclumps
 from transientclumps.TCPrepFunctions import prepare_image
+from transientfluxcal.fluxcal import \
+    find_calibration_factors, merge_catalog
 
 from .gbs import get_field_name as gbs_field_name
 
@@ -382,6 +386,195 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     return output_files
 
 
+def transient_flux_calibration(inputfiles):
+    pattern = re.compile('^(.*)_(\d{8})_(\d{5})_(850|450)_E(A\d)$')
+    output_files = []
+
+    # Read "family" file.
+    with open(os.path.join(data_dir, 'cal', 'family.json'), 'r') as f:
+        family_data = json.load(f)
+
+    # Process only the 850um data for now.
+    filter_ = '850'
+
+    # Organize files into SDF and catalog lists.
+    input_map = {}
+    input_cat = {}
+
+    for file_ in inputfiles:
+        target = None
+
+        if file_.endswith('_cat.fits'):
+            target = input_cat
+            match = pattern.match(file_[:-9])
+
+        elif file_.endswith('.sdf'):
+            target = input_map
+            match = pattern.match(file_[:-4])
+
+        else:
+            raise Exception('Unexpected file type: "{}"'.format(file_))
+
+        if not match:
+            raise Exception('Did not understand file name "{}"'.format(file_))
+
+        if target is None:
+            raise Exception('Target not set')
+
+        if match.group(4) != filter_:
+            continue
+
+        target[match.groups()] = file_
+
+    # Pair up the inputs and organize by field
+    inputs = defaultdict(list)
+    for (key, map_) in input_map.items():
+        cat = input_cat.pop(key, None)
+        if cat is None:
+            raise Exception('File "{}" has no matching catalog'.format(map_))
+
+        info = {'map': map_, 'cat': cat}
+        info.update(zip((
+            'field_name', 'date', 'obsnum', 'filter', 'reductiontype',
+        ), key))
+
+        key = (info.pop('field_name'), info.pop('reductiontype'))
+
+        inputs[key].append(info)
+
+    if input_cat:
+        raise Exception('Catalogs {} have no matching image'.format(repr(list(input_cat.keys()))))
+
+    for (key, input_) in inputs.items():
+        (field_name, reductiontype) = key
+        culled= []
+
+        # Get calibration source list.
+        good_sources = family_data[field_name][reductiontype]
+
+        # Merge each catalog with the reference.
+        for info in input_:
+            obsnum = int(info['obsnum'])
+
+            (cat_match, cat_cull) = merge_observation_catalogs(
+                field_name=field_name, date=info['date'],
+                obsnum=obsnum, filter_=filter_,
+                reductiontype=reductiontype, cat=info['cat'])
+
+            info['culled'] = cat_cull
+            culled.append(info)
+            output_files.append(cat_match)
+            output_files.append(cat_cull)
+
+        if not culled:
+            continue
+
+        # Perform flux calibration.
+        (calibration_factors, calibration_factor_errors) = \
+            find_calibration_factors(
+                observations=culled, good_sources=good_sources)
+
+        prepare_kwargs = get_prepare_parameters(filter_, fcf_arcsec=0.001)
+
+        log_lines = []
+
+        for (observation, calibration_factor, calibration_factor_error) in zip(
+                culled, calibration_factors, calibration_factor_errors):
+            if not calibration_factor > 0:
+                logger.error('Calibration failed for "%s"', map)
+                continue
+
+            map_ = observation['map']
+            map_cal = map_[:-4] + '_cal.sdf'
+            logger.debug('Calibrating file "%s" (making "%s")', map_, map_cal)
+            sys.stderr.flush()
+            subprocess.check_call(
+                [
+                    os.path.expandvars('$KAPPA_DIR/cdiv'),
+                    'in={}'.format(map_),
+                    'out={}'.format(map_cal),
+                    'scalar={}'.format(calibration_factor),
+                ],
+                shell=False,
+                stdout=sys.stderr)
+
+            prepare_image(map_cal, **prepare_kwargs)
+
+            map_smooth= map_cal[:-4]+'_crop_smooth_jypbm.sdf'
+
+            subprocess.check_call(
+                [
+                    os.path.expandvars('$KAPPA_DIR/setunits'),
+                    'ndf={}'.format(map_smooth),
+                    'units=Jy/beam',
+                ],
+                shell=False,
+                stdout=sys.stderr)
+
+            output_files.extend([map_cal, map_smooth])
+
+            log_lines.append([
+                field_name,
+                observation['date'],
+                observation['obsnum'],
+                filter_,
+                reductiontype,
+                calibration_factor,
+                calibration_factor_error,
+            ])
+
+        log_file = '{}_{}_{}_cal_factor.txt'.format(field_name, filter_, reductiontype)
+
+        with open(log_file, 'w') as f:
+            for line in log_lines:
+                print(*line, file=f)
+
+        output_files.append(log_file)
+
+    return output_files
+
+
+def merge_observation_catalogs(
+        field_name, date, obsnum, filter_, reductiontype, cat):
+    reductiontype_orig = re.sub('^A', 'R', reductiontype)
+    if reductiontype_orig not in dimmconfigdict:
+        raise Exception(
+            'Unrecognised reduction type "{}"'.format(reductiontype))
+
+    logger.info(
+        'Performing %sum %s catalog merge for %s on %s (observation %i)',
+        filter_, reductiontype, field_name, date, obsnum)
+
+    # Re-do source match to gather information.
+    refcat = get_filename_ref_cat(field_name, filter_, reductiontype_orig)
+    if not os.path.exists(refcat):
+        raise Exception('Reference catalog "{}" not found'.format(refcat))
+
+    refcat = shutil.copy(refcat, '.')
+
+    match_kwargs = get_match_parameters(filter_)
+
+    match_results = source_match(cat, refcat, **match_kwargs)
+
+    cat_match = '{}_{}_{:05d}_{}_{}_match.FIT'.format(
+        field_name, date, obsnum, filter_, reductiontype)
+
+    merge_catalog(
+        cat, refcat, date, obsnum, cat_match,
+        ref_index=match_results[4],
+        cat_index=match_results[5])
+
+    cat_cull = '{}_{}_{:05d}_{}_{}_cull.FIT'.format(
+        field_name, date, obsnum, filter_, reductiontype)
+
+    merge_catalog(
+        cat, refcat, date, obsnum, cat_cull,
+        ref_index=match_results[6],
+        cat_index=match_results[7])
+
+    return (cat_match, cat_cull)
+
+
 def get_fcf_arcsec(filter_):
     if filter_ == '850':
         fcf_arcsec = 2.34
@@ -393,8 +586,9 @@ def get_fcf_arcsec(filter_):
     return fcf_arcsec
 
 
-def get_prepare_parameters(filter_):
-    fcf_arcsec = get_fcf_arcsec(filter_)
+def get_prepare_parameters(filter_, fcf_arcsec=None):
+    if fcf_arcsec is None:
+        fcf_arcsec = get_fcf_arcsec(filter_)
 
     if filter_ == '850':
         beam_fwhm = 14.5
