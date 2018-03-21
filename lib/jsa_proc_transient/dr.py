@@ -525,7 +525,8 @@ def transient_flux_calibration(inputfiles):
                 calibration_factor_error,
             ])
 
-        log_file = '{}_{}_{}_cal_factor.txt'.format(field_name, filter_, reductiontype)
+        log_file = '{}_{}_{}{}_cal_factor.txt'.format(
+            field_name, filter_, survey_code, reductiontype)
 
         with open(log_file, 'w') as f:
             for line in log_lines:
