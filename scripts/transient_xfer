@@ -37,6 +37,10 @@ class TransientTransfer(CustomJobTransfer):
         if filename.endswith('.png'):
             return None
 
+        # Do not store the message text.
+        if filename.endswith('_variables.txt'):
+            return None
+
         # Assume suffix 'images' initially.
         suffix = 'images'
         is_cal = False
@@ -67,17 +71,28 @@ class TransientTransfer(CustomJobTransfer):
                 suffix = suffix + '_cal'
                 break
 
+        directory = None
+        subdirectory = None
+        if 'lightcurve' in filename:
+            subdirectory = 'lightcurves'
+
         if survey == 'E':
             survey_dir = 'EAO'
         elif survey == 'G':
             survey_dir = 'GBS/results'
         elif survey == 'H':
-            return '{}/{}/M17BP054/{}_{}'.format(
+            directory = '{}/{}/M17BP054/{}_{}'.format(
                 'EAO', source, reductiontype, suffix)
         else:
             raise Exception('Unrecognised survey code {}'.format(survey))
 
-        return '{}/{}/{}_{}'.format(survey_dir, source, reductiontype, suffix)
+        if directory is None:
+            directory = '{}/{}/{}_{}'.format(survey_dir, source, reductiontype, suffix)
+
+        if subdirectory is not None:
+            directory = '/'.join([directory, subdirectory])
+
+        return directory
 
 
 if __name__ == '__main__':

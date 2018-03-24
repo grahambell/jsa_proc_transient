@@ -66,6 +66,10 @@ class TransientCal(CustomJobRun):
                 logger.info('Storing preview image "%s"', filename)
                 shutil.copy(filename, transdir)
 
+            elif extension == '.pdf':
+                logger.info('Storing PDF file "%s"', filename)
+                shutil.copy(filename, transdir)
+
             elif extension == '.FIT':
                 filename_edited = basename + '.fits'
                 logger.info('Storing FITS file "%s" as "%s"',

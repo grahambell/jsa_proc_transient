@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 
+from astropy.io import ascii as ap_ascii
 from astropy.io import fits
 from starlink.ndfpack import Ndf
 
@@ -19,6 +20,9 @@ from transientclumps.TCGaussclumpsFunctions import run_gaussclumps
 from transientclumps.TCPrepFunctions import prepare_image
 from transientfluxcal.fluxcal import \
     find_calibration_factors, merge_catalog
+from transientfluxcal.trigger import \
+    analyse_sources, extract_pixel_values, \
+    make_metadata_table, merge_yso_catalog
 
 from .gbs import get_field_name as gbs_field_name
 
@@ -392,8 +396,22 @@ def transient_flux_calibration(inputfiles):
     survey_code = 'E'
 
     # Read "family" file.
-    with open(os.path.join(data_dir, 'cal', 'family.json'), 'r') as f:
+    with open(get_filename_cal_family(), 'r') as f:
         family_data = json.load(f)
+
+    # Find source lists used by the "trigger" routines.
+    disk_cat = get_filename_source_list('disks')
+    if not os.path.exists(disk_cat):
+        raise Exception('Disk source list "{}" not found'.format(disk_cat))
+    disk_cat = shutil.copy(disk_cat, '.')
+
+    prot_cat = get_filename_source_list('protostars')
+    if not os.path.exists(prot_cat):
+        raise Exception('Protostar source list "{}" not found'.format(prot_cat))
+    prot_cat = shutil.copy(prot_cat, '.')
+
+    with open(get_filename_special_names(), 'r') as f:
+        special_names = json.load(f)
 
     # Process only the 850um data for now.
     filter_ = '850'
@@ -448,7 +466,11 @@ def transient_flux_calibration(inputfiles):
 
     for (key, input_) in inputs.items():
         (field_name, reductiontype) = key
-        culled= []
+        culled = []
+
+        # Sort inputs by date and obsnum.
+        input_.sort(key=lambda x: x['obsnum'])
+        input_.sort(key=lambda x: x['date'])
 
         # Get calibration source list.
         good_sources = family_data[field_name][reductiontype]
@@ -481,6 +503,9 @@ def transient_flux_calibration(inputfiles):
         log_lines = []
         maps_cal = []
         maps_smooth = []
+        observations_calibrated = []
+        valid_calibration_factors = []
+        valid_calibration_factor_errors = []
 
         for (observation, calibration_factor, calibration_factor_error) in zip(
                 culled, calibration_factors, calibration_factor_errors):
@@ -508,7 +533,7 @@ def transient_flux_calibration(inputfiles):
 
             prepare_image(map_cal, **prepare_kwargs)
 
-            map_smooth= map_cal[:-4]+'_crop_smooth_jypbm.sdf'
+            map_smooth = map_cal[:-4]+'_crop_smooth_jypbm.sdf'
 
             subprocess.check_call(
                 [
@@ -522,6 +547,10 @@ def transient_flux_calibration(inputfiles):
             maps_cal.append(map_cal)
             maps_smooth.append(map_smooth)
             output_files.extend([map_cal, map_smooth])
+
+            observations_calibrated.append(observation)
+            valid_calibration_factors.append(calibration_factor)
+            valid_calibration_factor_errors.append(calibration_factor_error)
 
             log_lines.append([
                 field_name,
@@ -554,6 +583,65 @@ def transient_flux_calibration(inputfiles):
         create_coadded_map(maps_smooth, coadd_smooth)
         output_files.append(coadd_smooth)
         output_files.extend(create_png_previews(coadd_smooth))
+
+        # Begin "trigger" analysis -- starting with metadata table.
+        metadata = make_metadata_table(
+            maps=maps_smooth, observations=observations_calibrated,
+            calibration_factors=valid_calibration_factors,
+            calibration_factor_errors=valid_calibration_factor_errors,
+            field_name=field_name, reduction_type=reductiontype, filter_=filter_)
+
+        metadata_file = '{}_{}_{}{}_cal_metadata.txt'.format(
+            field_name, filter_, survey_code, reductiontype)
+        ap_ascii.write(metadata, output=metadata_file, format='commented_header')
+        output_files.append(metadata_file)
+
+        # Get published catalog.
+        pub_cat = get_filename_pub_cat(field_name)
+        if not os.path.exists(pub_cat):
+            raise Exception('Published catalog "{}" not found'.format(pub_cat))
+        pub_cat = shutil.copy(pub_cat, '.')
+
+        pub_cat_data = fits.getdata(pub_cat)
+
+        # Prepare merged YSO catalog.
+        yso_cat = merge_yso_catalog(pub_cat_data, disk_cat, prot_cat)
+        ap_ascii.write(yso_cat, output='yso_compare.txt', format='commented_header')
+
+        # Extract fluxes of sources from the smoothed maps.
+        map_fluxes = []
+
+        for (observation, map_smooth) in zip(observations_calibrated, maps_smooth):
+            map_smooth_ndf = Ndf(map_smooth)
+
+            map_fluxes.append(
+                extract_pixel_values(map_smooth_ndf, pub_cat_data, filter_))
+
+        # Run triggering analysis.
+        (trigger_table, trigger_sources, trigger_text, lightcurves) = analyse_sources(
+            field_name=field_name,
+            observations=observations_calibrated,
+            metadata=metadata,
+            yso_cat=yso_cat,
+            map_fluxes=map_fluxes,
+            filter_=filter_,
+            special_names=special_names,
+            lightcurve_prefix='{}_{}_{}{}'.format(
+                field_name, filter_, survey_code, reductiontype))
+
+        output_files.extend(lightcurves)
+
+        message_file = '{}_{}_{}{}_variables.txt'.format(
+            field_name, filter_, survey_code, reductiontype)
+        with open(message_file, 'w') as f:
+            for line in trigger_text:
+                print(line, file=f)
+        output_files.append(message_file)
+
+        source_info_file = '{}_{}_{}{}_source_info.txt'.format(
+            field_name, filter_, survey_code, reductiontype)
+        ap_ascii.write(trigger_table, output=source_info_file, format='commented_header')
+        output_files.append(source_info_file)
 
     return output_files
 
@@ -690,7 +778,7 @@ def create_coadded_map(maps, filename):
 
     filelist = tempfile.NamedTemporaryFile(
         mode='w', prefix='tmpList', delete=False)
-    filelist.file.writelines([x + '\n' for x in sorted(maps)])
+    filelist.file.writelines([x + '\n' for x in maps])
     filelist.file.close()
 
     sys.stderr.flush()
@@ -744,6 +832,32 @@ def get_filename_ref_cat(source, filter_, reductiontype):
     return os.path.join(
         data_dir, 'cat',
         '{}_reference_cat_{}_{}.fits'.format(source, filter_, reductiontype))
+
+
+def get_filename_pub_cat(source, pub='dij2017'):
+    if pub == 'dij2017':
+        cat_dir = 'cat_dij2017'
+        suffix = '20170616'
+    else:
+        raise Exception('Unknown publication "{}"'.format(pub))
+
+    return os.path.join(
+        data_dir, cat_dir,
+        '{}_sourcecat_{}.fits'.format(source, suffix))
+
+
+def get_filename_source_list(source_type):
+    return os.path.join(
+        data_dir, 'trigger',
+        '{}.txt'.format(source_type))
+
+
+def get_filename_cal_family():
+    return os.path.join(data_dir, 'cal', 'family.json')
+
+
+def get_filename_special_names():
+    return os.path.join(data_dir, 'trigger', 'names.json')
 
 
 def get_filename_output(source, date, obsnum, filter_, reductiontype, aligned,
