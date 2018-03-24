@@ -403,7 +403,4 @@ def analyse_sources(
         'Steve (via the automated variability detection pipeline)',
     ])
 
-    for line in text:
-        print(line, file=sys.stderr)
-
     return (t, triggered_sources, text, lightcurves)
