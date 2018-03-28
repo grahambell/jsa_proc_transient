@@ -1,0 +1,86 @@
+#!/usr/bin/env python2
+
+from __future__ import absolute_import, division, print_function
+
+from email.mime.text import MIMEText
+import json
+import logging
+import os
+import re
+import smtplib
+import sys
+
+from jsa_proc.custom.ingest import CustomJobIngest
+
+
+program_name = os.path.basename(sys.argv[0])
+logger = logging.getLogger(program_name)
+
+data_dir = '/net/kamaka/export/data/jsa_proc/data/M16AL001'
+
+
+class TransientNotify(CustomJobIngest):
+    def __init__(self, **kwargs):
+        """
+        Constructor for transient survey notify script class.
+        """
+
+        super(TransientNotify, self).__init__(
+            **kwargs)
+
+        with open(os.path.join(data_dir, 'trigger', 'email.json'), 'r') as f:
+            self.config = json.load(f)
+
+    def run_ingestion(self, transdir, filenames, dry_run=False):
+        messages = []
+
+        for filename in filenames:
+            if filename.endswith('_variables.txt'):
+                messages.append(filename)
+
+        smtp = None
+
+        try:
+            if not dry_run:
+                smtp = smtplib.SMTP(self.config['server'])
+
+            for filename in messages:
+                m = re.match(
+                    '^([-_A-Z0-9]+)_[48]50_([EGH])([AKR][0-9]+)_',
+                    filename)
+
+                if not m:
+                    raise Exception(
+                        'Could not extract source name and reduction type '
+                        'from file name "{}"'.format(filename))
+
+                (source, survey, reductiontype) = m.groups()
+
+                with open(os.path.join(transdir, filename), 'r') as f:
+                    message = MIMEText(f.read())
+
+                message['Subject'] = \
+                    'JCMT transient survey results: {}'.format(source)
+                message['From'] = self.config['from']
+                message['To'] = ', '.join(self.config['to'])
+
+                if not dry_run:
+                    logger.info('Sending message: %s', message['Subject'])
+                    smtp.sendmail(
+                        self.config['from'], self.config['to'],
+                        message.as_string())
+
+                else:
+                    logger.info(
+                        'DRY-RUN: would have sent the message: %s',
+                        message['Subject'])
+                    for line in message.as_string().splitlines():
+                        logger.info(line)
+
+        finally:
+            if smtp is not None:
+                smtp.quit()
+
+
+if __name__ == '__main__':
+    TransientNotify(program_name=program_name).run()
