@@ -162,7 +162,7 @@ def merge_yso_catalog(cat, disk_cat_file, prot_cat_file):
 
 def analyse_sources(
         field_name, observations, metadata, yso_cat, map_fluxes,
-        trigger_thresh=4.0, brightness_thresh=0.0, sd_thresh=2.0,
+        trigger_thresh=4.0, brightness_thresh=0.150, sd_thresh=2.0,
         filter_='850', special_names={}, lightcurve_prefix='index'):
     # Prepare an Astropy table.
     columns = [
