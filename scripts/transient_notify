@@ -2,7 +2,9 @@
 
 from __future__ import absolute_import, division, print_function
 
+from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import json
 import logging
 import os
@@ -58,6 +60,37 @@ class TransientNotify(CustomJobIngest):
 
                 with open(os.path.join(transdir, filename), 'r') as f:
                     message = MIMEText(f.read())
+
+                attachments = []
+                attachments_file = os.path.join(
+                    transdir, filename[:-4] + '_attach.txt')
+                if os.path.exists(attachments_file):
+                    with open(attachments_file, 'r') as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line:
+                                continue
+
+                            attachment_file = os.path.join(transdir, line)
+                            if os.path.exists(attachment_file):
+                                with open (attachment_file, 'rb') as fa:
+                                    attachment = MIMEApplication(
+                                        fa.read(), 'pdf')
+
+                                    attachment.add_header(
+                                        'Content-Disposition', 'attachment',
+                                        filename=line)
+
+                                    attachments.append(attachment)
+
+                if attachments:
+                    outer = MIMEMultipart()
+                    outer.attach(message)
+
+                    for attachment in attachments:
+                        outer.attach(attachment)
+
+                    message = outer
 
                 message['Subject'] = \
                     'JCMT transient survey results: {}'.format(source)
