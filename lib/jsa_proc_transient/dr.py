@@ -392,6 +392,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
 
 def transient_flux_calibration(inputfiles):
     pattern = re.compile('^(.*)_(\d{8})_(\d{5})_(850|450)_E(A\d)$')
+    r_pattern = re.compile('^(.*)_(\d{8})_(\d{5})_(850|450)_E(R\d)$')
     output_files = []
     survey_code = 'E'
 
@@ -419,6 +420,7 @@ def transient_flux_calibration(inputfiles):
     # Organize files into SDF and catalog lists.
     input_map = {}
     input_cat = {}
+    input_off = {}
 
     for file_ in inputfiles:
         target = None
@@ -430,6 +432,10 @@ def transient_flux_calibration(inputfiles):
         elif file_.endswith('.sdf'):
             target = input_map
             match = pattern.match(file_[:-4])
+
+        elif file_.endswith('_offset.txt'):
+            target = input_off
+            match = r_pattern.match(file_[:-11])
 
         else:
             raise Exception('Unexpected file type: "{}"'.format(file_))
@@ -456,6 +462,14 @@ def transient_flux_calibration(inputfiles):
         info.update(zip((
             'field_name', 'date', 'obsnum', 'filter', 'reductiontype',
         ), key))
+
+        reductiontype_orig = re.sub('^A', 'R', info['reductiontype'])
+        key_off = key[:-1] + (reductiontype_orig,)
+        off = input_off.pop(key_off, none)
+        if off is None:
+            raise Exception('File "{}" has no matching offset file'.format(map_))
+
+        info.update(read_pointing_offsets(off))
 
         key = (info.pop('field_name'), info.pop('reductiontype'))
 
@@ -741,6 +755,37 @@ def create_pointing_offsets(offsetfile, x, y, system='TRACKING'):
         f.write('#TAI DLON DLAT\n')
         f.write('1 {} {}\n'.format(x, y))
         f.write('10000000 {} {}\n'.format(x, y))
+
+
+def read_pointing_offsets(offsetfile):
+    system = None
+    x = None
+    y = None
+
+    with open(offsetfile, 'r') as f:
+        for line in f:
+            line = line.strip()
+
+            if line.startswith('#'):
+                m = re.match('# SYSTEM=(.*)', line)
+                if m:
+                    system = m.group(1)
+
+            else:
+                words = line.split(' ')
+                if len(words) == 3:
+                    x = float(words[1])
+                    y = float(words[2])
+
+    if system is None or x is None or y is None:
+        raise Exception(
+            'Did not understand offset file "{}"'.format(offsetfile))
+
+    return {
+        "offset_system" : system,
+        "offset_x": x,
+        "offset_y": y,
+    }
 
 
 def create_png_previews(filename, resolutions=[64, 256, 1024], tries=10):

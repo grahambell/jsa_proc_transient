@@ -87,7 +87,7 @@ while (my ($reduction, $source_jobs) = each %reduction_source_jobs) {
             task => $task,
             priority => $priority,
             parent_jobs => $jobs,
-            filters => [('_EA\d(\.sdf.gz|_cat\.fits)') x scalar @$jobs],
+            filters => [('_EA\d(?:\.sdf.gz|_cat\.fits)|_ER\d_offset\.txt') x scalar @$jobs],
             dry_run => $dry_run,
         });
     }

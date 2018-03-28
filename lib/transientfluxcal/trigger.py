@@ -40,13 +40,15 @@ def make_metadata_table(
             stats['RMS_unit'],
             calibration_factor,
             calibration_factor_error,
+            observation['offset_x'],
+            observation['offset_y'],
         ])
 
     return Table(
         list(zip(*rows)),
         names=(
             'ID', 'Name', 'UT', 'JD', 'Obs', 'Elev', 'Tau225',
-            'RMS', 'RMS_unit', 'Cal_f', 'Cal_f_err'),
+            'RMS', 'RMS_unit', 'Cal_f', 'Cal_f_err', 'Offset_x', 'Offset_y'),
         meta={'name': 'Meta Data Table'})
 
 
