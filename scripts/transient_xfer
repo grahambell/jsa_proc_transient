@@ -37,10 +37,6 @@ class TransientTransfer(CustomJobTransfer):
         if filename.endswith('.png'):
             return None
 
-        # Do not store the message text.
-        if filename.endswith('_variables.txt'):
-            return None
-
         # Assume suffix 'images' initially.
         suffix = 'images'
         is_cal = False
