@@ -161,7 +161,9 @@ def merge_yso_catalog(cat, disk_cat_file, prot_cat_file):
 
 
 def analyse_sources(
-        field_name, observations, metadata, yso_cat, map_fluxes,
+        field_name, observations, metadata,
+        calibration_factors, calibration_factor_errors,
+        yso_cat, map_fluxes,
         trigger_thresh=4.0, brightness_thresh=0.150, sd_thresh=2.0,
         filter_='850', special_names={}, lightcurve_prefix='index'):
     # Prepare an Astropy table.
@@ -197,6 +199,7 @@ def analyse_sources(
     trigger_messages_stochastic_old = []
 
     lightcurves = []
+    lightcurves_triggered = []
     triggered_sources = []
 
     n_obs = len(observations)
@@ -238,7 +241,13 @@ def analyse_sources(
         intercept       = p[1]
         delta_intercept = np.sqrt(np.diag(cov))[1]
 
-        for (i_obs, flux) in enumerate(fluxes):
+        is_triggered = False
+        is_triggered_not_old = False
+
+        # Enumerate fluxes backwards so we find most recent trigger first.
+        for (i_obs_rev, flux) in enumerate(reversed(fluxes)):
+            i_obs = n_obs - i_obs_rev - 1
+
             jd = jds[i_obs]
             observation = observations[i_obs]
 
@@ -253,21 +262,25 @@ def analyse_sources(
 
             # Check to see if any of the peak flux measurements on any date have a large variance
 
-            if trigger >= trigger_thresh:
-                triggered_sources.append(id_)
+            if ((mean > brightness_thresh)
+                    and (trigger >= trigger_thresh)
+                    and not is_triggered):
+                is_triggered = True
 
                 trigger_message = [
                     '',
                     '####################',
                     '####################',
                     '',
-                    'Source {} (index = {}) has abs(flux - flux_m)/SD = {:.2f} on JD: {} = {} (Epoch {}/{})'.format(name, index, trigger, jd, observation['date'], i_obs + 1, n_obs),
+                    'Source {} (index = {}) has abs(flux - flux_m)/SD = {:.2f} on JD: {} = {} (Epoch {}/{})'.format(
+                        name, index, trigger, jd, observation['date'], i_obs + 1, n_obs),
                     '',
                     'This is greater than the current abs(flux - flux_m)/SD threshold: {}.'.format(trigger_thresh),
                     'Mean Source Brightness: {:.4f} Jy/beam.'.format(mean),
                     'This source is located at (RA, dec) = ({}, {})'.format(ra, dec),
                     'The nearest protostar is {:.2f}" away and the nearest disc is {:.2f}" away.'.format(proto_dist, disk_dist),
                     '',
+                    'Peak Brightness      = {}'.format(flux),
                     'Mean Peak Brightness = {}'.format(mean),
                     'SD                   = {}'.format(sd),
                     'SD_fid               = {}'.format(sd_fiducial),
@@ -278,17 +291,21 @@ def analyse_sources(
                     '',
                 ]
 
-                if (i_obs + 1) == n_obs:
+                if not i_obs_rev:
                     trigger_messages_stochastic_new.extend(trigger_message)
+                    is_triggered_not_old = True
 
                 else:
                     trigger_messages_stochastic_old.extend(trigger_message)
 
+
         # Now check for the other indicator of variability - a large relative standard deviation relative to the fiducial model in Doug's Midproject paper (like, for instance, EC53)
         # Also, a birghtness_threshold is coded in just in case we get too many spurious non-detections from faint sources and we want to get rid of those
 
-        if mean > brightness_thresh and sd_fiducial_trigger > sd_thresh:
-            triggered_sources.append(id_)
+        if ((mean > brightness_thresh)
+                and (sd_fiducial_trigger > sd_thresh)):
+            is_triggered = True
+            is_triggered_not_old = True
 
             trigger_messages_fiducial.extend([
                 '',
@@ -302,6 +319,7 @@ def analyse_sources(
                 'This source is located at (RA, dec) = ({}, {})'.format(ra, dec),
                 'The nearest protostar is {:.2f}" away and the nearest disc is {:.2f}" away.'.format(proto_dist, disk_dist),
                 '',
+                'Peak Brightness      = {}'.format(fluxes[-1]),
                 'Mean Peak Brightness = {}'.format(mean),
                 'SD                   = {}'.format(sd),
                 'SD_fid               = {}'.format(sd_fiducial),
@@ -311,6 +329,9 @@ def analyse_sources(
                 '####################',
                 '',
             ])
+
+        if is_triggered:
+            triggered_sources.append(id_)
 
         # Add row for this source to the table.
         row = [
@@ -353,11 +374,21 @@ def analyse_sources(
 
         lightcurves.append(lightcurve_filename)
 
+        if is_triggered_not_old:
+            lightcurves_triggered.append(lightcurve_filename)
+
+    observation_latest = observations[-1]
+
     # Build message text.
     text = [
         'Hello Everyone,',
         '',
-        'The {} region has {} Transient Survey epochs.'.format(field_name, n_obs),
+        'As of {}, the {} region has {} Transient Survey epochs.'.format(
+            observation_latest['date'], field_name, n_obs),
+        '',
+        'The most recent observation had offsets of {:.3f}, {:.3f} and a calibration factor of {:.3f} +/-  {:.3f}.'.format(
+            observation_latest['offset_x'], observation_latest['offset_y'],
+            calibration_factors[-1], calibration_factor_errors[-1]),
         '',
         'We are tracking {} sources in this region.'.format(n_source),
         'Here are the latest results from the automatic variability detection pipeline:',
@@ -405,4 +436,4 @@ def analyse_sources(
         'Steve (via the automated variability detection pipeline)',
     ])
 
-    return (t, triggered_sources, text, lightcurves)
+    return (t, triggered_sources, text, lightcurves, lightcurves_triggered)

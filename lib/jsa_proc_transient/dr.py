@@ -632,16 +632,19 @@ def transient_flux_calibration(inputfiles):
                 extract_pixel_values(map_smooth_ndf, pub_cat_data, filter_))
 
         # Run triggering analysis.
-        (trigger_table, trigger_sources, trigger_text, lightcurves) = analyse_sources(
-            field_name=field_name,
-            observations=observations_calibrated,
-            metadata=metadata,
-            yso_cat=yso_cat,
-            map_fluxes=map_fluxes,
-            filter_=filter_,
-            special_names=special_names,
-            lightcurve_prefix='{}_{}_{}{}'.format(
-                field_name, filter_, survey_code, reductiontype))
+        (trigger_table, trigger_sources, trigger_text,
+            lightcurves, lightcurves_triggered) = analyse_sources(
+                field_name=field_name,
+                observations=observations_calibrated,
+                metadata=metadata,
+                calibration_factors=valid_calibration_factors,
+                calibration_factor_errors=valid_calibration_factor_errors,
+                yso_cat=yso_cat,
+                map_fluxes=map_fluxes,
+                filter_=filter_,
+                special_names=special_names,
+                lightcurve_prefix='{}_{}_{}{}'.format(
+                    field_name, filter_, survey_code, reductiontype))
 
         output_files.extend(lightcurves)
 
@@ -650,7 +653,13 @@ def transient_flux_calibration(inputfiles):
         with open(message_file, 'w') as f:
             for line in trigger_text:
                 print(line, file=f)
-        output_files.append(message_file)
+
+        message_file_attach = message_file[:-4] + '_attach.txt'
+        with open(message_file_attach, 'w') as f:
+            for lightcurve in lightcurves_triggered:
+                print(lightcurve, file=f)
+
+        output_files.extend([message_file, message_file_attach])
 
         source_info_file = '{}_{}_{}{}_source_info.txt'.format(
             field_name, filter_, survey_code, reductiontype)
@@ -782,7 +791,7 @@ def read_pointing_offsets(offsetfile):
             'Did not understand offset file "{}"'.format(offsetfile))
 
     return {
-        "offset_system" : system,
+        "offset_system": system,
         "offset_x": x,
         "offset_y": y,
     }
