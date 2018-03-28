@@ -465,7 +465,7 @@ def transient_flux_calibration(inputfiles):
 
         reductiontype_orig = re.sub('^A', 'R', info['reductiontype'])
         key_off = key[:-1] + (reductiontype_orig,)
-        off = input_off.pop(key_off, none)
+        off = input_off.pop(key_off, None)
         if off is None:
             raise Exception('File "{}" has no matching offset file'.format(map_))
 
