@@ -164,6 +164,7 @@ def analyse_sources(
         field_name, observations, metadata,
         calibration_factors, calibration_factor_errors,
         yso_cat, map_fluxes,
+        calibration_ids, calibration_id_mapping,
         trigger_thresh=4.0, brightness_thresh=0.150, sd_thresh=2.0,
         filter_='850', special_names={}, lightcurve_prefix='index'):
     # Prepare an Astropy table.
@@ -427,6 +428,22 @@ def analyse_sources(
             ])
 
             text.extend(trigger_messages_stochastic_old)
+
+    text.extend([
+        '',
+        'The sources used for calibration of this region are:',
+        '',
+    ])
+
+    for calibration_id in calibration_ids:
+        for (family_id, cat_index) in calibration_id_mapping:
+            if calibration_id == family_id:
+                text.append('Index {} ("family member" {})'.format(
+                    cat_index, calibration_id))
+                break
+        else:
+            text.append('Non-matched "family member" {}'.format(
+                calibration_id))
 
     text.extend([
         '',

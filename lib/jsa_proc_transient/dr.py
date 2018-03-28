@@ -400,6 +400,9 @@ def transient_flux_calibration(inputfiles):
     with open(get_filename_cal_family(), 'r') as f:
         family_data = json.load(f)
 
+    with open(get_filename_id_mapping(), 'r') as f:
+        family_data_mapping = json.load(f)
+
     # Find source lists used by the "trigger" routines.
     disk_cat = get_filename_source_list('disks')
     if not os.path.exists(disk_cat):
@@ -643,6 +646,8 @@ def transient_flux_calibration(inputfiles):
                 map_fluxes=map_fluxes,
                 filter_=filter_,
                 special_names=special_names,
+                calibration_ids=good_sources,
+                calibration_id_mapping=family_data_mapping[field_name],
                 lightcurve_prefix='{}_{}_{}{}'.format(
                     field_name, filter_, survey_code, reductiontype))
 
@@ -912,6 +917,10 @@ def get_filename_cal_family():
 
 def get_filename_special_names():
     return os.path.join(data_dir, 'trigger', 'names.json')
+
+
+def get_filename_id_mapping():
+    return os.path.join(data_dir, 'trigger', 'family_to_dij.json')
 
 
 def get_filename_output(source, date, obsnum, filter_, reductiontype, aligned,
