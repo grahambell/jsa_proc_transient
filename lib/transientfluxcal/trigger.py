@@ -386,7 +386,7 @@ def analyse_sources(
         'As of {}, the {} region has {} Transient Survey epochs.'.format(
             observation_latest['date'], field_name, n_obs),
         '',
-        'The most recent observation had offsets of {:.3f}, {:.3f} and a calibration factor of {:.3f} +/-  {:.3f}.'.format(
+        'The most recent observation had offsets of {:.3f}, {:.3f} and a calibration factor of {:.3f} +/- {:.3f}.'.format(
             observation_latest['offset_x'], observation_latest['offset_y'],
             calibration_factors[-1], calibration_factor_errors[-1]),
         '',
