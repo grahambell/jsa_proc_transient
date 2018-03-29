@@ -218,6 +218,10 @@ def analyse_sources(
         proto_dist = yso['Proto_Dist']
         disk_dist  = yso['Disk_Dist']
 
+        coord = SkyCoord(ra, dec, frame='icrs', unit='deg')
+        ra_str = coord.ra.to_string(sep=':', unit='hour', precision=1)
+        dec_str = coord.dec.to_string(sep=':', unit='deg', precision=0)
+
         fluxes = np.array([map_flux[i_source] for map_flux in map_fluxes])
 
         triggers = []
@@ -278,13 +282,13 @@ def analyse_sources(
                     '',
                     'This is greater than the current abs(flux - flux_m)/SD threshold: {}.'.format(trigger_thresh),
                     'Mean Source Brightness: {:.4f} Jy/beam.'.format(mean),
-                    'This source is located at (RA, dec) = ({}, {})'.format(ra, dec),
+                    'This source is located at (RA, dec) = ({}, {})'.format(ra_str, dec_str),
                     'The nearest protostar is {:.2f}" away and the nearest disc is {:.2f}" away.'.format(proto_dist, disk_dist),
                     '',
-                    'Peak Brightness      = {}'.format(flux),
-                    'Mean Peak Brightness = {}'.format(mean),
-                    'SD                   = {}'.format(sd),
-                    'SD_fid               = {}'.format(sd_fiducial),
+                    'Peak Brightness      = {:.4f}'.format(flux),
+                    'Mean Peak Brightness = {:.4f}'.format(mean),
+                    'SD                   = {:.4f}'.format(sd),
+                    'SD_fid               = {:.4f}'.format(sd_fiducial),
                     'SD/SD_fid            = {:.5f}'.format(sd_fiducial_trigger),
                     '',
                     '####################',
@@ -317,13 +321,13 @@ def analyse_sources(
                 '',
                 'This is greater than the fiducial SD model would predict for a mean brightness of {:.3f} Jy/beam by a factor of {:.2f}.'.format(mean, sd_fiducial_trigger),
                 'The current SD/SD_fiducial threshold is set to {}.'.format(sd_thresh),
-                'This source is located at (RA, dec) = ({}, {})'.format(ra, dec),
+                'This source is located at (RA, dec) = ({}, {})'.format(ra_str, dec_str),
                 'The nearest protostar is {:.2f}" away and the nearest disc is {:.2f}" away.'.format(proto_dist, disk_dist),
                 '',
-                'Peak Brightness      = {}'.format(fluxes[-1]),
-                'Mean Peak Brightness = {}'.format(mean),
-                'SD                   = {}'.format(sd),
-                'SD_fid               = {}'.format(sd_fiducial),
+                'Peak Brightness      = {:.4f}'.format(fluxes[-1]),
+                'Mean Peak Brightness = {:.4f}'.format(mean),
+                'SD                   = {:.4f}'.format(sd),
+                'SD_fid               = {:.4f}'.format(sd_fiducial),
                 'SD/SD_fid            = {:.5f}'.format(sd_fiducial_trigger),
                 '',
                 '####################',
@@ -387,7 +391,7 @@ def analyse_sources(
         'As of {}, the {} region has {} Transient Survey epochs.'.format(
             observation_latest['date'], field_name, n_obs),
         '',
-        'The most recent observation had offsets of {:.3f}, {:.3f} and a calibration factor of {:.3f} +/- {:.3f}.'.format(
+        'The most recent observation had offsets of RA = {:.3f}", Dec = {:.3f}" and a calibration factor of {:.3f} +/- {:.3f}.'.format(
             observation_latest['offset_x'], observation_latest['offset_y'],
             calibration_factors[-1], calibration_factor_errors[-1]),
         '',
@@ -438,11 +442,11 @@ def analyse_sources(
     for calibration_id in calibration_ids:
         for (family_id, cat_index) in calibration_id_mapping:
             if calibration_id == family_id:
-                text.append('Index {} ("family member" {})'.format(
+                text.append('Index {} (GaussClumps Catalogue Reference PIDENT {})'.format(
                     cat_index, calibration_id))
                 break
         else:
-            text.append('Non-matched "family member" {}'.format(
+            text.append('Non-matched GaussClumps Catalogue Reference PIDENT {}'.format(
                 calibration_id))
 
     text.extend([
