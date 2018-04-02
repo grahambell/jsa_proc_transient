@@ -162,7 +162,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
         is_gbs = True
         field_name = gbs_field_name(raw_source)
         survey_code = 'G'
-    elif project == 'M17BP054':
+    elif project in ('M17BP054', 'M18AP017'):
         field_name = source
         survey_code = 'H'
     else:

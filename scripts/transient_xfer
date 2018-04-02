@@ -42,25 +42,30 @@ class TransientTransfer(CustomJobTransfer):
         is_cal = False
 
         m = re.match(
-            '^([-_A-Z0-9]+)_[0-9]{8}_[0-9]{5}_[48]50_([EGH])([AKR][0-9]+)[._]',
+            '^([-_A-Z0-9]+)_([0-9]{8})_[0-9]{5}_[48]50_([EGH])([AKR][0-9]+)[._]',
             filename)
 
-        if not m:
+        if m:
+            (source, date, survey, reductiontype) = m.groups()
+
+        else:
             # Try alternate (multi-observation) file pattern.
             m = re.match(
                 '^([-_A-Z0-9]+)_[48]50_([EGH])([AKR][0-9]+)_',
                 filename)
 
+            if not m:
+                raise Exception(
+                    'Could not extract source name and reduction type '
+                    'from file name "{}"'.format(filename))
+
             # Assume all files matching this pattern should
             # go in the _cal directory.
             is_cal = True
 
-        if not m:
-            raise Exception(
-                'Could not extract source name and reduction type '
-                'from file name "{}"'.format(filename))
+            date = None
 
-        (source, survey, reductiontype) = m.groups()
+            (source, survey, reductiontype) = m.groups()
 
         for part in ['_cal', '_match', '_cull']:
             if is_cal or part in filename:
@@ -77,8 +82,13 @@ class TransientTransfer(CustomJobTransfer):
         elif survey == 'G':
             survey_dir = 'GBS/results'
         elif survey == 'H':
-            directory = '{}/{}/M17BP054/{}_{}'.format(
-                'EAO', source, reductiontype, suffix)
+            if date < '20180329':
+                project ='M17BP054'
+            else:
+                project = 'M18AP017'
+
+            directory = '{}/{}/{}/{}_{}'.format(
+                'EAO', source, project, reductiontype, suffix)
         else:
             raise Exception('Unrecognised survey code {}'.format(survey))
 
