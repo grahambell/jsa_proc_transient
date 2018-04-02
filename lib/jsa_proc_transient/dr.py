@@ -548,6 +548,20 @@ def transient_flux_calibration(inputfiles):
                 shell=False,
                 stdout=sys.stderr)
 
+            # Apply units correction -- some of the products in the system
+            # were reduced before we started setting these units.  Set them
+            # now so that this product and the coadd get the correct units.
+            # (We can remove this if were were to re-reduce everything with
+            # units set in the products.)
+            subprocess.check_call(
+                [
+                    os.path.expandvars('$KAPPA_DIR/setunits'),
+                    'ndf={}'.format(map_cal),
+                    'units=mJy/arcsec**2',
+                ],
+                shell=False,
+                stdout=sys.stderr)
+
             prepare_image(map_cal, **prepare_kwargs)
 
             map_smooth = map_cal[:-4]+'_crop_smooth_jypbm.sdf'
