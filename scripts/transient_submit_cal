@@ -5,6 +5,7 @@ use warnings;
 
 use Getopt::Long;
 use Alien::Taco;
+use FindBin;
 
 my ($dry_run, $reduction_str);
 
@@ -26,6 +27,17 @@ else {
     @reductions = qw/R3/;
 }
 
+my @projects = qw/M16AL001 M16BEC30/;
+
+my $taco_py3 = new Alien::Taco(lang => 'python3');
+$taco_py3->import_module('sys');
+$taco_py3->set_value('sys.path', [
+    "$FindBin::RealBin/../lib",
+    $taco_py3->get_value('sys.path')]);
+$taco_py3->import_module(
+    'jsa_proc_transient.dr', args => ['safe_object_name']);
+my $safe_object_name = $taco_py3->function('safe_object_name');
+
 my $taco = new Alien::Taco(lang => 'python');
 $taco->import_module('logging');
 $taco->call_function('logging.basicConfig',
@@ -35,15 +47,12 @@ $taco->import_module('jsa_proc.config', args => ['get_database']);
 $taco->import_module('jsa_proc.submit.update', args => ['add_upd_del_job']);
 my $db = $taco->call_function('get_database');
 
-my @jobs = $db->call_method('find_jobs', kwargs => {
-    task => $task_parent,
-    outputs => '%.sdf.gz',
-});
+my @jobs = $db->call_method('find_jobs', kwargs => {task => $task_parent});
 
 my %reduction_source_jobs = map {$_ => {}} @reductions;
 
 JOB: foreach my $job (@jobs) {
-    my ($id, $tag, $state, undef, undef, undef, undef, $outputs) = @$job;
+    my ($id, $tag, $state, undef, undef, undef, undef, undef) = @$job;
     next if $state eq 'E';
 
     my %reductions = ();
@@ -56,13 +65,16 @@ JOB: foreach my $job (@jobs) {
 
     my ($reduction) = keys %reductions;
 
-    my %sources = ();
-    foreach my $output (@$outputs) {
-        die 'Unrecognized output: ' . $output
-            unless $output =~ /^(.*)_\d{8}_\d{5}_(?:850|450)_([EGH])(?:A|R)\d\.sdf\.gz$/;
+    my @obs = $db->call_method('get_obs_info', kwargs => {job_id => $id});
 
-        next JOB unless $2 eq 'E';
-        $sources{$1} ++;
+    my %sources = ();
+    foreach my $obs (@obs) {
+        my $project = $obs->[11];
+        next JOB unless grep {$_ eq $project} @projects;
+
+        my $source = $safe_object_name->($obs->[14]);
+
+        $sources{$source} ++;
     }
 
     die "Job $id($state) has multiple targets" if 1 < scalar keys %sources;
