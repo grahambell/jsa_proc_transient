@@ -388,8 +388,8 @@ def analyse_sources(
     text = [
         'Hello Everyone,',
         '',
-        'As of {}, the {} region has {} Transient Survey epochs.'.format(
-            observation_latest['date'], field_name, n_obs),
+        'As of {} (JD {:.3f}), the {} region has {} Transient Survey epochs.'.format(
+            observation_latest['date'], jds[-1], field_name, n_obs),
         '',
         'The most recent observation had offsets of RA = {:.3f}", Dec = {:.3f}" and a calibration factor of {:.3f} +/- {:.3f}.'.format(
             observation_latest['offset_x'], observation_latest['offset_y'],
@@ -439,15 +439,24 @@ def analyse_sources(
         '',
     ])
 
+    calibration_ids_by_index = {}
+    calibration_ids_unmatched = []
+
     for calibration_id in calibration_ids:
         for (family_id, cat_index) in calibration_id_mapping:
             if calibration_id == family_id:
-                text.append('Index {} (GaussClumps Catalogue Reference PIDENT {})'.format(
-                    cat_index, calibration_id))
+                calibration_ids_by_index[cat_index] = calibration_id
                 break
         else:
-            text.append('Non-matched GaussClumps Catalogue Reference PIDENT {}'.format(
-                calibration_id))
+            calibration_ids_unmatched.append(calibration_id)
+
+    for cat_index in sorted(calibration_ids_by_index.keys()):
+        text.append('Index {} (GaussClumps Catalogue Reference PIDENT {})'.format(
+            cat_index, calibration_ids_by_index[cat_index]))
+
+    for calibration_id in calibration_ids_unmatched:
+        text.append('Non-matched GaussClumps Catalogue Reference PIDENT {}'.format(
+            calibration_id))
 
     text.extend([
         '',
