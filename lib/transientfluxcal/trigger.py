@@ -224,7 +224,7 @@ def analyse_sources(
 
         fluxes = np.array([map_flux[i_source] for map_flux in map_fluxes])
 
-        triggers = []
+        triggers = [0.0,] * n_obs
 
         mean = np.average(fluxes)
         sd = np.std(fluxes, ddof=1)
@@ -263,7 +263,7 @@ def analyse_sources(
 
             trigger = abs(flux - other_mean) / other_sd
 
-            triggers.append(trigger)
+            triggers[i_obs] = trigger
 
             # Check to see if any of the peak flux measurements on any date have a large variance
 
