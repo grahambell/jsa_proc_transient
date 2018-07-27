@@ -48,7 +48,7 @@ class TransientNotify(CustomJobIngest):
 
             for filename in messages:
                 m = re.match(
-                    '^([-_A-Z0-9]+)_[48]50_([EGH])([AKR][0-9]+)_',
+                    '^([-_A-Z0-9]+)_([48]50)_([EGH])([AKR][0-9]+)_',
                     filename)
 
                 if not m:
@@ -56,7 +56,7 @@ class TransientNotify(CustomJobIngest):
                         'Could not extract source name and reduction type '
                         'from file name "{}"'.format(filename))
 
-                (source, survey, reductiontype) = m.groups()
+                (source, filter_, survey, reductiontype) = m.groups()
 
                 with open(os.path.join(transdir, filename), 'r') as f:
                     message = MIMEText(f.read())
@@ -93,7 +93,7 @@ class TransientNotify(CustomJobIngest):
                     message = outer
 
                 message['Subject'] = \
-                    'JCMT transient survey results: {}'.format(source)
+                    'JCMT transient survey results: {} ({}um)'.format(source, filter_)
                 message['From'] = self.config['from']
                 message['To'] = ', '.join(self.config['to'])
 

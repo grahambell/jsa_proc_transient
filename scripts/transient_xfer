@@ -42,16 +42,16 @@ class TransientTransfer(CustomJobTransfer):
         is_cal = False
 
         m = re.match(
-            '^([-_A-Z0-9]+)_([0-9]{8})_[0-9]{5}_[48]50_([EGH])([AKR][0-9]+)[._]',
+            '^([-_A-Z0-9]+)_([0-9]{8})_[0-9]{5}_([48]50)_([EGH])([AKR][0-9]+)[._]',
             filename)
 
         if m:
-            (source, date, survey, reductiontype) = m.groups()
+            (source, date, filter_, survey, reductiontype) = m.groups()
 
         else:
             # Try alternate (multi-observation) file pattern.
             m = re.match(
-                '^([-_A-Z0-9]+)_[48]50_([EGH])([AKR][0-9]+)_',
+                '^([-_A-Z0-9]+)_([48]50)_([EGH])([AKR][0-9]+)_',
                 filename)
 
             if not m:
@@ -65,11 +65,13 @@ class TransientTransfer(CustomJobTransfer):
 
             date = None
 
-            (source, survey, reductiontype) = m.groups()
+            (source, filter_, survey, reductiontype) = m.groups()
 
         for part in ['_cal', '_match', '_cull']:
             if is_cal or part in filename:
                 suffix = suffix + '_cal'
+                if filter_ != '850':
+                    suffix = suffix + '_' + filter_
                 break
 
         directory = None
