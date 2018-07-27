@@ -17,11 +17,12 @@ from starlink.ndfpack import Ndf
 
 from transientclumps.TCOffsetFunctions import source_match
 from transientclumps.TCGaussclumpsFunctions import run_gaussclumps
-from transientclumps.TCPrepFunctions import prepare_image
+from transientclumps.TCPrepFunctions import prepare_image, \
+    crop_image, unitconv_image
 from transientfluxcal.fluxcal import \
-    find_calibration_factors, merge_catalog
+    find_calibration_factors, merge_catalog, extract_brightnessess_from_cat
 from transientfluxcal.trigger import \
-    analyse_sources, extract_pixel_values, \
+    analyse_sources, extract_central_var, extract_pixel_values, \
     make_metadata_table, merge_yso_catalog
 
 from .gbs import get_field_name as gbs_field_name
@@ -390,18 +391,33 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     return output_files
 
 
-def transient_flux_calibration(inputfiles):
+def transient_flux_calibration(inputfiles, filter_='850'):
     pattern = re.compile('^(.*)_(\d{8})_(\d{5})_(850|450)_E(A\d)$')
     r_pattern = re.compile('^(.*)_(\d{8})_(\d{5})_(850|450)_E(R\d)$')
     output_files = []
     survey_code = 'E'
 
+    # Determine calibration "method" based on filter.
+    method_cat = True
+    date_cutoff = None
+    if filter_ == '450':
+        method_cat = False
+        date_cutoff = '20180501'
+    elif filter_ == '850':
+        date_cutoff = '20170301'
+
     # Read "family" file.
-    with open(get_filename_cal_family(), 'r') as f:
+    with open(get_filename_cal_family(filter_), 'r') as f:
         family_data = json.load(f)
 
-    with open(get_filename_id_mapping(), 'r') as f:
-        family_data_mapping = json.load(f)
+    if method_cat:
+        with open(get_filename_id_mapping(), 'r') as f:
+            family_data_mapping = json.load(f)
+    else:
+        # We don't use an existing catalog, so there is no mapping.
+        family_data_mapping = None
+
+    prepare_kwargs = get_prepare_parameters(filter_, fcf_arcsec=0.001)
 
     # Find source lists used by the "trigger" routines.
     disk_cat = get_filename_source_list('disks')
@@ -417,9 +433,6 @@ def transient_flux_calibration(inputfiles):
     with open(get_filename_special_names(), 'r') as f:
         special_names = json.load(f)
 
-    # Process only the 850um data for now.
-    filter_ = '850'
-
     # Organize files into SDF and catalog lists.
     input_map = {}
     input_cat = {}
@@ -427,6 +440,7 @@ def transient_flux_calibration(inputfiles):
 
     for file_ in inputfiles:
         target = None
+        any_filter = False
 
         if file_.endswith('_cat.fits'):
             target = input_cat
@@ -439,6 +453,8 @@ def transient_flux_calibration(inputfiles):
         elif file_.endswith('_offset.txt'):
             target = input_off
             match = r_pattern.match(file_[:-11])
+            # There is only one offset file -- use it for both filters.
+            any_filter = True
 
         else:
             raise Exception('Unexpected file type: "{}"'.format(file_))
@@ -449,17 +465,21 @@ def transient_flux_calibration(inputfiles):
         if target is None:
             raise Exception('Target not set')
 
-        if match.group(4) != filter_:
+        if (match.group(4) != filter_) and not any_filter:
             continue
 
         target[match.groups()] = file_
 
     # Pair up the inputs and organize by field
     inputs = defaultdict(list)
-    for (key, map_) in input_map.items():
-        cat = input_cat.pop(key, None)
-        if cat is None:
-            raise Exception('File "{}" has no matching catalog'.format(map_))
+    inv_var_sum = 0.0
+    for (key, map_) in sorted(input_map.items()):
+        if method_cat:
+            cat = input_cat.pop(key, None)
+            if cat is None:
+                raise Exception('File "{}" has no matching catalog'.format(map_))
+        else:
+            cat = None
 
         info = {'map': map_, 'cat': cat}
         info.update(zip((
@@ -467,23 +487,57 @@ def transient_flux_calibration(inputfiles):
         ), key))
 
         reductiontype_orig = re.sub('^A', 'R', info['reductiontype'])
-        key_off = key[:-1] + (reductiontype_orig,)
+        key_off = key[:-2] + ('850', reductiontype_orig,)
         off = input_off.pop(key_off, None)
         if off is None:
             raise Exception('File "{}" has no matching offset file'.format(map_))
 
         info.update(read_pointing_offsets(off))
 
+        if not method_cat:
+            var = extract_central_var(Ndf(map_), int(filter_))
+            logger.info('Estimated variance of file %s: %f', map_, var)
+            info['var'] = var
+
+            # Only add to sum if before the cut-off date.
+            if info['date'] <= date_cutoff:
+                inv_var_sum += 1.0 / var
+
         key = (info.pop('field_name'), info.pop('reductiontype'))
 
         inputs[key].append(info)
 
-    if input_cat:
+    var_thresh = None
+    if inv_var_sum != 0.0:
+        var_coadd = 1.0 / inv_var_sum
+        # 9 is factor by which this method seems to underestimate the noise in the coadd
+        var_thresh = 9 * 11.111 * var_coadd
+        logger.info('Variance threshold: %f', var_thresh)
+
+    if method_cat and input_cat:
         raise Exception('Catalogs {} have no matching image'.format(repr(list(input_cat.keys()))))
 
     for (key, input_) in inputs.items():
         (field_name, reductiontype) = key
-        culled = []
+
+        # Get published catalog.
+        pub_cat = get_filename_pub_cat(field_name, filter_)
+        if not os.path.exists(pub_cat):
+            raise Exception('Published catalog "{}" not found'.format(pub_cat))
+        pub_cat = shutil.copy(pub_cat, '.')
+
+        pub_cat_data = fits.getdata(pub_cat)
+
+        # Wheech out noisy maps.
+        if var_thresh is not None:
+            input_filtered = []
+            for info in input_:
+                if info['var'] > var_thresh:
+                    logger.info('Skipping map %s: variance too large', info['map'])
+                else:
+                    input_filtered.append(info)
+
+            input_ = input_filtered
 
         # Sort inputs by date and obsnum.
         input_.sort(key=lambda x: x['obsnum'])
@@ -492,30 +546,26 @@ def transient_flux_calibration(inputfiles):
         # Get calibration source list.
         good_sources = family_data[field_name][reductiontype]
 
-        # Merge each catalog with the reference.
-        for info in input_:
-            obsnum = int(info['obsnum'])
+        if method_cat:
+            (fluxcal_outputs, culled, all_peak_brightnesses) = perform_fluxcal_from_cat(
+                input_, good_sources, field_name, filter_, reductiontype, survey_code)
 
-            (cat_match, cat_cull) = merge_observation_catalogs(
-                field_name=field_name, date=info['date'],
-                obsnum=obsnum, filter_=filter_,
-                reductiontype=reductiontype, cat=info['cat'],
-                survey_code=survey_code)
+            output_files.extend(fluxcal_outputs)
+            input_ = culled
 
-            info['culled'] = cat_cull
-            culled.append(info)
-            output_files.append(cat_match)
-            output_files.append(cat_cull)
+        else:
+            all_peak_brightnesses = perform_fluxcal_via_extract(
+                input_, good_sources, filter_, pub_cat_data)
 
-        if not culled:
+        if not input_:
             continue
 
         # Perform flux calibration.
         (calibration_factors, calibration_factor_errors) = \
             find_calibration_factors(
-                observations=culled, good_sources=good_sources)
-
-        prepare_kwargs = get_prepare_parameters(filter_, fcf_arcsec=0.001)
+                observations=input_,
+                all_peak_brightnesses=all_peak_brightnesses,
+                date_cutoff=date_cutoff)
 
         log_lines = []
         maps_cal = []
@@ -525,7 +575,7 @@ def transient_flux_calibration(inputfiles):
         valid_calibration_factor_errors = []
 
         for (observation, calibration_factor, calibration_factor_error) in zip(
-                culled, calibration_factors, calibration_factor_errors):
+                input_, calibration_factors, calibration_factor_errors):
             if calibration_factor is None:
                 logger.warning('No calibration factor for "%s"', map)
                 continue
@@ -562,7 +612,13 @@ def transient_flux_calibration(inputfiles):
                 shell=False,
                 stdout=sys.stderr)
 
-            prepare_image(map_cal, **prepare_kwargs)
+            if filter_ != '450':
+                prepare_image(map_cal, **prepare_kwargs)
+            else:
+                prepare_image_via_gaussian_smooth(
+                    map_cal, pixels =2, kern_fwhm=4,
+                    jypbm_conv=prepare_kwargs['jypbm_conv'],
+                    beam_fwhm=prepare_kwargs['beam_fwhm'])
 
             map_smooth = map_cal[:-4]+'_crop_smooth_jypbm.sdf'
 
@@ -627,14 +683,6 @@ def transient_flux_calibration(inputfiles):
         ap_ascii.write(metadata, output=metadata_file, format='commented_header')
         output_files.append(metadata_file)
 
-        # Get published catalog.
-        pub_cat = get_filename_pub_cat(field_name)
-        if not os.path.exists(pub_cat):
-            raise Exception('Published catalog "{}" not found'.format(pub_cat))
-        pub_cat = shutil.copy(pub_cat, '.')
-
-        pub_cat_data = fits.getdata(pub_cat)
-
         # Prepare merged YSO catalog.
         yso_cat = merge_yso_catalog(pub_cat_data, disk_cat, prot_cat)
         ap_ascii.write(yso_cat, output='yso_compare.txt', format='commented_header')
@@ -661,7 +709,8 @@ def transient_flux_calibration(inputfiles):
                 filter_=filter_,
                 special_names=special_names,
                 calibration_ids=good_sources,
-                calibration_id_mapping=family_data_mapping[field_name],
+                calibration_id_mapping=(None if family_data_mapping is None
+                    else family_data_mapping[field_name]),
                 lightcurve_prefix='{}_{}_{}{}'.format(
                     field_name, filter_, survey_code, reductiontype))
 
@@ -686,6 +735,50 @@ def transient_flux_calibration(inputfiles):
         output_files.append(source_info_file)
 
     return output_files
+
+
+def perform_fluxcal_from_cat(input_, good_sources, field_name, filter_, reductiontype, survey_code):
+    output_files = []
+    culled = []
+
+    # Merge each catalog with the reference.
+    for info in input_:
+        obsnum = int(info['obsnum'])
+
+        (cat_match, cat_cull) = merge_observation_catalogs(
+            field_name=field_name, date=info['date'],
+            obsnum=obsnum, filter_=filter_,
+            reductiontype=reductiontype, cat=info['cat'],
+            survey_code=survey_code)
+
+        info['culled'] = cat_cull
+        culled.append(info)
+        output_files.append(cat_match)
+        output_files.append(cat_cull)
+
+    (culled, all_peak_brightnesses) = extract_brightnessess_from_cat(culled, good_sources)
+
+    return (output_files, culled, all_peak_brightnesses)
+
+
+def perform_fluxcal_via_extract(input_, good_sources, filter_, cat):
+    all_peak_brightnesses = []
+
+    for observation in input_:
+        # Smooth to 4" (this is 2 x 2" pixels for the 450um maps).
+        smooth = apply_gaussian_smooth(observation['map'], pixels=2, suffix='smoothuncal')
+
+        # Extract pixels.
+        values = extract_pixel_values(Ndf(smooth), cat, filter_)
+
+        # Get "good" brightness values.
+        brightnesses = []
+        for id_ in good_sources:
+            brightnesses.append(values[id_])
+
+        all_peak_brightnesses.append(brightnesses)
+
+    return all_peak_brightnesses
 
 
 def merge_observation_catalogs(
@@ -816,6 +909,45 @@ def read_pointing_offsets(offsetfile):
     }
 
 
+def apply_gaussian_smooth(filename, pixels, suffix='smooth'):
+    out = filename[:-4] + '_{}.sdf'.format(suffix)
+
+    logger.debug('Running GAUSMOOTH, output: "%s"', out)
+    sys.stderr.flush()
+    subprocess.check_call(
+        [
+            os.path.expandvars('$KAPPA_DIR/gausmooth'),
+            'in={}'.format(filename),
+            'out={}'.format(out),
+            'fwhm={}'.format(pixels),
+        ],
+        shell=False,
+        stdout=sys.stderr)
+
+    if not os.path.exists(out):
+        raise Exception('GAUSMOOTH did not generate output "{}"'.format(out))
+
+    return out
+
+
+# Version of TCPrepFunctions.prepare image which uses apply_gaussian_smooth
+# instead of convolving with a kernel.
+def prepare_image_via_gaussian_smooth(
+        img_name, pixels, kern_fwhm, jypbm_conv,
+        beam_fwhm, crop_radius=1200, crop_method='CIRCLE'):
+    #Crop the image.
+    crop_image(img_name, crop_radius, crop_method)
+
+    #Smooth the image.
+    img_name = img_name[:-4]+'_crop.sdf'
+    img_name = apply_gaussian_smooth(img_name, pixels=pixels)
+
+    #Convert the units. First account for the smoothing by dividing new beam
+    # area by old beam area and multiplying to the Jy/Beam conversion factor.
+    jypbm_conv *= ((beam_fwhm**2)+(kern_fwhm**2))/(beam_fwhm**2)
+    unitconv_image(img_name, jypbm_conv)
+
+
 def create_png_previews(filename, resolutions=[64, 256, 1024], tries=10):
     previews = []
 
@@ -907,16 +1039,27 @@ def get_filename_ref_cat(source, filter_, reductiontype):
         '{}_reference_cat_{}_{}.fits'.format(source, filter_, reductiontype))
 
 
-def get_filename_pub_cat(source, pub='dij2017'):
+def get_filename_pub_cat(source, filter_, pub=None):
+    if pub is None:
+        if filter_ == '850':
+            pub = 'dij2017'
+        else:
+            pub = 'stm450'
+
     if pub == 'dij2017':
         cat_dir = 'cat_dij2017'
         suffix = '20170616'
+        extra = ''
+    elif pub == 'stm450':
+        cat_dir = 'cat_stm_450'
+        suffix = '20180604'
+        extra = '_450'
     else:
         raise Exception('Unknown publication "{}"'.format(pub))
 
     return os.path.join(
         data_dir, cat_dir,
-        '{}_sourcecat_{}.fits'.format(source, suffix))
+        '{}{}_sourcecat_{}.fits'.format(source, extra, suffix))
 
 
 def get_filename_source_list(source_type):
@@ -925,8 +1068,13 @@ def get_filename_source_list(source_type):
         '{}.txt'.format(source_type))
 
 
-def get_filename_cal_family():
-    return os.path.join(data_dir, 'cal', 'family.json')
+def get_filename_cal_family(filter_):
+    if filter_ == '850':
+        filename = 'family.json'
+    else:
+        filename = 'family_{}.json'.format(filter_)
+
+    return os.path.join(data_dir, 'cal', filename)
 
 
 def get_filename_special_names():

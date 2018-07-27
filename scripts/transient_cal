@@ -22,6 +22,14 @@ from jsa_proc_transient.dr import transient_analysis, transient_flux_calibration
 program_name = os.path.basename(sys.argv[0])
 logger = logging.getLogger(program_name)
 
+usage_extra = """
+Usage:
+    transient_cal [--filter <filter>]
+
+Options:
+    --filter <filter>  SCUBA-2 filter to process [default: 850]
+"""
+
 
 class TransientCal(CustomJobRun):
     def run_processing(self, inputs, transdir, id_='unknown', parameters=[]):
@@ -33,11 +41,15 @@ class TransientCal(CustomJobRun):
         :param id: job identifier
         """
 
+        args = docopt(usage_extra, argv=parameters)
+
         # Send all output to STDERR (so that jsawrapdr collects it).
         os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
 
         # Run calibration routine.
-        outputs = transient_flux_calibration(inputfiles=inputs)
+        outputs = transient_flux_calibration(
+            inputfiles=inputs,
+            filter_=args['--filter'])
 
         # Copy output files to transfer directory.
         for filename in outputs:

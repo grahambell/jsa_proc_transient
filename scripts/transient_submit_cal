@@ -90,17 +90,22 @@ JOB: foreach my $job (@jobs) {
 
 while (my ($reduction, $source_jobs) = each %reduction_source_jobs) {
     while (my ($source, $jobs) = each %$source_jobs) {
-        $taco->call_function('add_upd_del_job', kwargs => {
-            db => $db,
-            tag => join('-', 'lap-transient', $source, $reduction, 'cal'),
-            location => 'JAC',
-            mode => 'project',
-            parameters => $reduction,
-            task => $task,
-            priority => $priority,
-            parent_jobs => $jobs,
-            filters => [('_EA\d(?:\.sdf.gz|_cat\.fits)|_ER\d_offset\.txt') x scalar @$jobs],
-            dry_run => $dry_run,
-        });
+        foreach my $filter (qw/850 450/) {
+            my $suffix = ($filter eq '850') ? '' : "-$filter";
+            my $parameters = ($filter eq '850') ? '' : "-- --filter $filter";
+
+            $taco->call_function('add_upd_del_job', kwargs => {
+                db => $db,
+                tag => join('-', 'lap-transient', $source . $suffix, $reduction, 'cal'),
+                location => 'JAC',
+                mode => 'project',
+                parameters => $parameters,
+                task => $task . $suffix,
+                priority => $priority,
+                parent_jobs => $jobs,
+                filters => [('_EA\d(?:\.sdf.gz|_cat\.fits)|_ER\d_offset\.txt') x scalar @$jobs],
+                dry_run => $dry_run,
+            });
+        }
     }
 }

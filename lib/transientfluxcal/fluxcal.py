@@ -83,12 +83,11 @@ def merge_catalog(
     fits.BinTableHDU.from_columns(columns).writeto(filename)
 
 
-def find_calibration_factors(observations, good_sources):
+def extract_brightnessess_from_cat(observations, good_sources):
     # Find the average peak brightness of each of the calibrator sources
-    # prior to March 1st, 2017
+    # prior to the cutoff date.
     all_peak_brightnesses = []
-    cal_peak_brightnesses = []
-    skipped = set()
+    culled = []
 
     logger.debug('Extracting peak brightnesses from catalogs')
 
@@ -113,25 +112,29 @@ def find_calibration_factors(observations, good_sources):
                 logger.error('Did not find PIDENT_ref=%i', id_)
                 n_not_found += 1
 
-        # TODO: should also be >= "ref date".
-        if date < '20170301':
-            if n_not_found:
-                # Raise an exception if we didn't find all specified good
-                # sources for one of the calibration observations.
-                raise Exception(
-                    'Not all sources found for calibration observation {}'.format(cat_file))
-
-            cal_peak_brightnesses.append(brightnesses)
-
         if n_not_found:
-            # For general observations (including non-calibration observations),
-            # just issue a warning and skip the observation if not all
+            # Just issue a warning and skip the observation if not all
             # sources were found.
             logger.warning('Skipping %s as not all sources found', cat_file)
-            skipped.add(cat_file)
             continue
 
+        culled.append(observation)
         all_peak_brightnesses.append(np.array(brightnesses))
+
+    return (culled, all_peak_brightnesses)
+
+
+def find_calibration_factors(observations, all_peak_brightnesses, date_cutoff):
+    logger.debug('Making list of peak brightness for calibration observations')
+
+    cal_peak_brightnesses = []
+
+    for (observation, brightnesses) in zip(observations, all_peak_brightnesses):
+        date = observation['date']
+
+        # TODO: should also be >= "ref date".
+        if date < date_cutoff:
+            cal_peak_brightnesses.append(brightnesses)
 
     average_brightnesses = np.mean(cal_peak_brightnesses, axis=0)
 
@@ -142,16 +145,9 @@ def find_calibration_factors(observations, good_sources):
     average_ratio_errors = []
 
     for (observation, brightnesses) in zip(observations, all_peak_brightnesses):
-        cat_file = observation['culled']
+        map_file = observation['map']
 
-        if cat_file in skipped:
-            logger.warning('Skipping %s ...', cat_file)
-
-            average_ratios.append(None)
-            average_ratio_errors.append(None)
-            continue
-
-        logger.warning('Computing ratios for %s', cat_file)
+        logger.info('Computing ratios for %s', map_file)
 
         ratios = brightnesses / average_brightnesses
 

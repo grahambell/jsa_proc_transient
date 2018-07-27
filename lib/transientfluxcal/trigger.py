@@ -118,6 +118,24 @@ def extract_pixel_values(ndf, cat, filter_=850):
     return values
 
 
+def extract_central_var(ndf, filter_=850, halfwidth=100):
+    prev_frame = ndf.wcs.Current
+
+    # Select AXIS coordinates.
+    ndf.wcs.Current = 3
+
+    a = ndf.wcs.tran([[0], [0], [0]], False)
+    (x, y, z) = (a - 1).flatten().round().astype(int)
+
+    subset = ndf.var[0,(y-halfwidth):(y+halfwidth),(x-halfwidth):(x+halfwidth)]
+    var_mean = subset.mean()
+
+    # Restore the current frame.
+    ndf.wcs.Current = prev_frame
+
+    return var_mean.item()
+
+
 def merge_yso_catalog(cat, disk_cat_file, prot_cat_file):
     cat_dtypes = [('index', 'i'), ('ra', 'f8'), ('dec', 'f8'), ('class', '<U2')]
 
@@ -388,8 +406,8 @@ def analyse_sources(
     text = [
         'Hello Everyone,',
         '',
-        'As of {} (JD {:.3f}), the {} region has {} Transient Survey epochs.'.format(
-            observation_latest['date'], jds[-1], field_name, n_obs),
+        'As of {} (JD {:.3f}), the {} region has {} Transient Survey epochs at {}um.'.format(
+            observation_latest['date'], jds[-1], field_name, n_obs, filter_),
         '',
         'The most recent observation had offsets of RA = {:.3f}", Dec = {:.3f}" and a calibration factor of {:.3f} +/- {:.3f}.'.format(
             observation_latest['offset_x'], observation_latest['offset_y'],
@@ -442,21 +460,27 @@ def analyse_sources(
     calibration_ids_by_index = {}
     calibration_ids_unmatched = []
 
-    for calibration_id in calibration_ids:
-        for (family_id, cat_index) in calibration_id_mapping:
-            if calibration_id == family_id:
-                calibration_ids_by_index[cat_index] = calibration_id
-                break
-        else:
-            calibration_ids_unmatched.append(calibration_id)
+    if calibration_id_mapping is None:
+        for calibration_id in sorted(calibration_ids):
+            text.append('Catalogue entry {}'.format(
+                calibration_id))
 
-    for cat_index in sorted(calibration_ids_by_index.keys()):
-        text.append('Index {} (GaussClumps Catalogue Reference PIDENT {})'.format(
-            cat_index, calibration_ids_by_index[cat_index]))
+    else:
+        for calibration_id in calibration_ids:
+            for (family_id, cat_index) in calibration_id_mapping:
+                if calibration_id == family_id:
+                    calibration_ids_by_index[cat_index] = calibration_id
+                    break
+            else:
+                calibration_ids_unmatched.append(calibration_id)
 
-    for calibration_id in calibration_ids_unmatched:
-        text.append('Non-matched GaussClumps Catalogue Reference PIDENT {}'.format(
-            calibration_id))
+        for cat_index in sorted(calibration_ids_by_index.keys()):
+            text.append('Index {} (GaussClumps Catalogue Reference PIDENT {})'.format(
+                cat_index, calibration_ids_by_index[cat_index]))
+
+        for calibration_id in calibration_ids_unmatched:
+            text.append('Non-matched GaussClumps Catalogue Reference PIDENT {}'.format(
+                calibration_id))
 
     text.extend([
         '',
