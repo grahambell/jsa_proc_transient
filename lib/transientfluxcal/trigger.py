@@ -225,6 +225,17 @@ def analyse_sources(
     n_source = len(yso_cat)
     jds = metadata['JD'].data
 
+    if filter_ == '850':
+        noise_faint = 0.014
+        noise_bright = 0.02
+
+    elif filter_ == '450':
+        noise_faint = metadata['RMS'].data.mean()
+        noise_bright = 0.055
+
+    else:
+        raise Exception('Filter not recognized')
+
     # For each source, calculate the mean flux and standard deviation.
     for (i_source, yso) in enumerate(yso_cat):
         id_        = yso['ID']
@@ -247,7 +258,7 @@ def analyse_sources(
         mean = np.average(fluxes)
         sd = np.std(fluxes, ddof=1)
 
-        sd_fiducial = np.sqrt(0.014 ** 2.0 + (0.02 * mean) ** 2.0)
+        sd_fiducial = np.sqrt(noise_faint ** 2.0 + (noise_bright * mean) ** 2.0)
 
         sd_fiducial_trigger = sd / sd_fiducial
 
@@ -406,8 +417,16 @@ def analyse_sources(
     text = [
         'Hello Everyone,',
         '',
-        'As of {} (JD {:.3f}), the {} region has {} Transient Survey epochs at {}um.'.format(
-            observation_latest['date'], jds[-1], field_name, n_obs, filter_),
+    ]
+
+    if filter_ == '850':
+        text.append('As of {} (JD {:.3f}), the {} region has {} Transient Survey epochs.'.format(
+            observation_latest['date'], jds[-1], field_name, n_obs))
+    else:
+        text.append('As of {} (JD {:.3f}), the {} region has {} Transient Survey epochs which have a sufficiently low RMS at {}um to include in this analysis.'.format(
+            observation_latest['date'], jds[-1], field_name, n_obs, filter_))
+
+    text.extend([
         '',
         'The most recent observation had offsets of RA = {:.3f}", Dec = {:.3f}" and a calibration factor of {:.3f} +/- {:.3f}.'.format(
             observation_latest['offset_x'], observation_latest['offset_y'],
@@ -415,7 +434,7 @@ def analyse_sources(
         '',
         'We are tracking {} sources in this region.'.format(n_source),
         'Here are the latest results from the automatic variability detection pipeline:',
-    ]
+    ])
 
     if not triggered_sources:
         text.extend([

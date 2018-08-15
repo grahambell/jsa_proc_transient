@@ -1052,7 +1052,7 @@ def get_filename_pub_cat(source, filter_, pub=None):
         extra = ''
     elif pub == 'stm450':
         cat_dir = 'cat_stm_450'
-        suffix = '20180604'
+        suffix = '20180814'
         extra = '_450'
     else:
         raise Exception('Unknown publication "{}"'.format(pub))
