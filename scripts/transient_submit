@@ -19,7 +19,7 @@ use OMP::Info::Obs;
 use OMP::Constants qw/:obs/;
 
 my ($ut, $observation, $dry_run, $gbs, $ec, $reduction_str, $offset_file,
-    $pi_project);
+    $pi_project, $task, $custom_args_str);
 die 'Could not process command line options'
     unless GetOptions(
         'dry-run'     => \$dry_run,
@@ -30,6 +30,8 @@ die 'Could not process command line options'
         'reduction=s' => \$reduction_str,
         'offsets=s'   => \$offset_file,
         'piproject=s' => \$pi_project,
+        'task=s'      => \$task,
+        'params=s'    => \$custom_args_str,
     );
 
 my (@projects, @reductions, $priority, %project_objects);
@@ -81,7 +83,10 @@ if (defined $offset_file) {
     $tag_extra = '-K';
 }
 
-my $task = 'lap-transient';
+my @custom_args = ();
+@custom_args = split ' ', $custom_args_str;
+
+$task = 'lap-transient' unless defined $task;
 my $only_info = 0;
 
 die 'UT date not specified' unless defined $ut;
@@ -155,8 +160,7 @@ foreach my $project (@projects) {
             }
 
             if (scalar @files) {
-                # Combine arguments in case we (in future) have multiple sets.
-                my @extra_args = @offset_args;
+                my @extra_args = (@custom_args, @offset_args);
 
                 foreach my $reduction (@reductions) {
                     my $tag = $task . "-" . $obs->obsid
