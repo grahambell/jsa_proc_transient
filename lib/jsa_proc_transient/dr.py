@@ -59,7 +59,7 @@ kernel_fwhm = float(kernel[:-4].split('_')[-1])
 
 def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat,
                        dimmconfig_850=None, dimmconfig_450=None,
-                       fixed_dra=None, fixed_ddec=None):
+                       fixed_dra=None, fixed_ddec=None, mask_suffix=None):
     """
     Take in a list of input files from a single observation and
     the reduction type (e.g. 'R1', 'R2' etc).
@@ -190,7 +190,7 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     if mask_reductiontype is not None:
         # Use the appropriate mask as the reference image.
         reference = get_filename_mask(
-            source, filter_, mask_reductiontype, is_gbs)
+            source, filter_, mask_reductiontype, is_gbs, suffix=mask_suffix)
         if not os.path.exists(reference):
             raise Exception('Mask file "{}" not found'.format(reference))
     else:
@@ -1019,12 +1019,14 @@ def safe_object_name(name):
     return name.upper()
 
 
-def get_filename_mask(source, filter_, reductiontype, is_gbs):
-    pattern = '{}_GBS_extmask_{}_{}.sdf' if is_gbs else '{}_extmask_{}_{}.sdf'
+def get_filename_mask(source, filter_, reductiontype, is_gbs, suffix=None):
+    pattern = '{}_GBS_extmask_{}_{}{}.sdf' if is_gbs else '{}_extmask_{}_{}{}.sdf'
+
+    suffix = '' if suffix is None else '_{}'.format(suffix)
 
     return os.path.join(
         data_dir, 'mask',
-        pattern.format(source, filter_, reductiontype))
+        pattern.format(source, filter_, reductiontype, suffix))
 
 
 def get_filename_reference(source, filter_):

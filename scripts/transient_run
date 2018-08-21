@@ -25,13 +25,15 @@ logger = logging.getLogger(program_name)
 # Describe extra parameters used by this script.
 usage_extra = """
 Usage:
-    transient_run <reduction_type> [--no-450-cat] [--as-ref-cat] [--dimmconfig850 <config>] [--dimmconfig450 <config>] [--dra <offset>] [--ddec <offset>]
+    transient_run <reduction_type> [--no-450-cat] [--as-ref-cat] [--dimmconfig850 <config>] [--dimmconfig450 <config>] [--dra <offset>] [--ddec <offset>] [--mask <suffix>] [--nozip]
 
 Options:
     --dimmconfig850 <config>  Dimmconfig file to use for 850um reduction
     --dimmconfig450 <config>  Dimmconfig file to use for 450um reduction
     --dra <offset>            Offset in RA (arcseconds)
     --ddec <offset>           Offset in Declination (arcseconds)
+    --mask <suffix>           Mask suffix
+    --nozip                   Do not zip .sdf file products
 """
 
 
@@ -59,7 +61,8 @@ class TransientRun(CustomJobRun):
             dimmconfig_850=args['--dimmconfig850'],
             dimmconfig_450=args['--dimmconfig450'],
             fixed_dra=args['--dra'],
-            fixed_ddec=args['--ddec'])
+            fixed_ddec=args['--ddec'],
+            mask_suffix=args['--mask'])
 
         for filename in outputs:
             (base_name, extension) = os.path.splitext(filename)
@@ -70,13 +73,14 @@ class TransientRun(CustomJobRun):
                     '_cal$', '', base_name) + '.sdf'
                 filename_trans = os.path.join(transdir, filename_edited)
                 shutil.copyfile(filename, filename_trans)
-                subprocess.check_call(
-                    [
-                        '/bin/gzip',
-                        '--best',
-                        filename_trans,
-                    ],
-                    shell=False)
+                if not args['--nozip']:
+                    subprocess.check_call(
+                        [
+                            '/bin/gzip',
+                            '--best',
+                            filename_trans,
+                        ],
+                        shell=False)
 
             elif extension == '.txt':
                 logger.info('Storing text file "%s"', filename)
