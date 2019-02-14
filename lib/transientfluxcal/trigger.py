@@ -183,7 +183,7 @@ def analyse_sources(
         calibration_factors, calibration_factor_errors,
         yso_cat, map_fluxes,
         calibration_ids, calibration_id_mapping,
-        trigger_thresh=4.0, brightness_thresh=0.150, sd_thresh=2.0,
+        trigger_thresh=4.0, brightness_thresh=0.150, sd_thresh=1.5,
         filter_='850', special_names={}, lightcurve_prefix='index'):
     # Prepare an Astropy table.
     columns = [
