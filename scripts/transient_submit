@@ -34,7 +34,7 @@ die 'Could not process command line options'
         'params=s'    => \$custom_args_str,
     );
 
-my (@projects, @reductions, $priority, %project_objects);
+my (@projects, @reductions, $priority, %project_objects, %reduction_priority);
 
 if ($gbs) {
     my $taco = new Alien::Taco(lang => 'python');
@@ -70,6 +70,13 @@ else {
     @projects = qw/M16AL001/;
     @reductions = qw/R1 R2 R3 R4/;
     $priority = 100;
+    %reduction_priority = (
+        R1 => -100,  # Lower than jcmt-nightly.
+        R2 => -100,  # Lower than jcmt-nightly.
+        R3 => 100,   # Highest since "cal" uses this one.  "cal" is higher, but
+                     # will still wait for processing to finish first.
+        R4 => 90,    # Lower than R3 (and "cal").
+    );
 }
 
 if (defined $reduction_str) {
@@ -96,99 +103,105 @@ echo_messages(1);
 prepare_archive_db();
 
 foreach my $project (@projects) {
+    # Priority used here only for logging.
     my ($mode, $grp) = find_observations(
         $ut, $project, $priority, 'transient_submit');
 
     if (scalar(@{$grp->obs}) == 0) {
         log_message("No observations were retrieved from the database.\n");
+        next;
     }
-    else {
-        log_message(scalar(@{$grp->obs}) .
-                    " observations were retrieved from the database.\n\n");
 
-        my %groups;
+    log_message(scalar(@{$grp->obs}) .
+                " observations were retrieved from the database.\n\n");
 
-        foreach my $obs ($grp->obs) {
-            next if $obs->status == OMP__OBS_JUNK;
+    my %groups;
 
-            if (defined $observation) {
-                next unless $obs->runnr() == $observation;
-            }
+    foreach my $obs ($grp->obs) {
+        next if $obs->status == OMP__OBS_JUNK;
 
-            my @files = ();
-            my @obsinfo = ();
-            my @offset_args = ();
-
-            for my $subsys ($obs->subsystems()) {
-                my @all_obsidss = $subsys->obsidss;
-                my $obsidss = $all_obsidss[0];
-
-                die "Error determining an OBSIDSS for an observation"
-                    unless defined $obsidss;
-
-                next if exists $JUNK_OBSIDSS{$obsidss};
-
-                my $subsyshdr = $subsys->hdrhash();
-                my $object = $subsyshdr->{'OBJECT'};
-
-                if (scalar keys %project_objects) {
-                    unless (exists $project_objects{$project}->{$object}) {
-                        log_message("Skipping unwanted object $object.\n");
-                        next;
-                    }
-                }
-
-                if (defined $offset) {
-                    my $offset_key = sprintf(
-                        '%8d_%05d',
-                        $subsyshdr->{'UTDATE'},
-                        $subsyshdr->{'OBSNUM'});
-
-                    unless (exists $offset->{$offset_key}) {
-                        log_message("Skipping obs without offset: $obsidss\n");
-                        next;
-                    }
-
-                    my $offset_radec = $offset->{$offset_key};
-                    @offset_args = ('--dra', $offset_radec->[0],
-                                    '--ddec', $offset_radec->[1]);
-                }
-
-                push @obsinfo, create_obsinfo_hash($obs, $subsyshdr);
-
-                push @files, map {basename($_)} $subsys->filename();
-            }
-
-            if (scalar @files) {
-                my @extra_args = (@custom_args, @offset_args);
-
-                foreach my $reduction (@reductions) {
-                    my $tag = $task . "-" . $obs->obsid
-                                    . "-" . $reduction
-				    . $tag_extra;
-
-                    foreach my $obsinfo (@obsinfo) {
-                        $obsinfo->{'association'} = $tag;
-                    }
-
-                    my $params = $reduction;
-
-                    if (@extra_args) {
-                        $params .= ' -- '. join(' ', @extra_args);
-                    }
-
-                    $groups{$tag} = {
-                        mode => 'obs',
-                        task => $task,
-                        drparams => $params,
-                        files => \@files,
-                        obsinfolist => \@obsinfo,
-                    };
-                }
-            }
+        if (defined $observation) {
+            next unless $obs->runnr() == $observation;
         }
 
-        add_jsa_proc_jobs(\%groups, 'obs', $priority, $only_info, $dry_run);
+        my @files = ();
+        my @obsinfo = ();
+        my @offset_args = ();
+
+        for my $subsys ($obs->subsystems()) {
+            my @all_obsidss = $subsys->obsidss;
+            my $obsidss = $all_obsidss[0];
+
+            die "Error determining an OBSIDSS for an observation"
+                unless defined $obsidss;
+
+            next if exists $JUNK_OBSIDSS{$obsidss};
+
+            my $subsyshdr = $subsys->hdrhash();
+            my $object = $subsyshdr->{'OBJECT'};
+
+            if (scalar keys %project_objects) {
+                unless (exists $project_objects{$project}->{$object}) {
+                    log_message("Skipping unwanted object $object.\n");
+                    next;
+                }
+            }
+
+            if (defined $offset) {
+                my $offset_key = sprintf(
+                    '%8d_%05d',
+                    $subsyshdr->{'UTDATE'},
+                    $subsyshdr->{'OBSNUM'});
+
+                unless (exists $offset->{$offset_key}) {
+                    log_message("Skipping obs without offset: $obsidss\n");
+                    next;
+                }
+
+                my $offset_radec = $offset->{$offset_key};
+                @offset_args = ('--dra', $offset_radec->[0],
+                                '--ddec', $offset_radec->[1]);
+            }
+
+            push @obsinfo, create_obsinfo_hash($obs, $subsyshdr);
+
+            push @files, map {basename($_)} $subsys->filename();
+        }
+
+        if (scalar @files) {
+            my @extra_args = (@custom_args, @offset_args);
+
+            foreach my $reduction (@reductions) {
+                my $tag = $task . "-" . $obs->obsid
+                                . "-" . $reduction
+                                . $tag_extra;
+
+                foreach my $obsinfo (@obsinfo) {
+                    $obsinfo->{'association'} = $tag;
+                }
+
+                my $params = $reduction;
+
+                if (@extra_args) {
+                    $params .= ' -- '. join(' ', @extra_args);
+                }
+
+                $groups{$reduction}->{$tag} = {
+                    mode => 'obs',
+                    task => $task,
+                    drparams => $params,
+                    files => \@files,
+                    obsinfolist => \@obsinfo,
+                };
+            }
+        }
+    }
+
+    foreach my $reduction (@reductions) {
+        my $reduction_priority = $reduction_priority{$reduction} // $priority;
+        add_jsa_proc_jobs(
+            $groups{$reduction}, 'obs', $reduction_priority,
+            $only_info, $dry_run);
     }
 }
 
