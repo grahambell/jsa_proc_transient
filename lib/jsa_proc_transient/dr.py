@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from codecs import ascii_decode
 from collections import defaultdict
 import json
+import math
 import os
 import logging
 import re
@@ -413,9 +414,15 @@ def transient_flux_calibration(inputfiles, filter_='850'):
     if method_cat:
         with open(get_filename_id_mapping(), 'r') as f:
             family_data_mapping = json.load(f)
+
+        rms_thresh = None
+
     else:
         # We don't use an existing catalog, so there is no mapping.
         family_data_mapping = None
+
+        with open(get_filename_rms_thresh(filter_), 'r') as f:
+            rms_thresh = json.load(f)
 
     prepare_kwargs = get_prepare_parameters(filter_, fcf_arcsec=0.001)
 
@@ -472,7 +479,6 @@ def transient_flux_calibration(inputfiles, filter_='850'):
 
     # Pair up the inputs and organize by field
     inputs = defaultdict(list)
-    inv_var_sum = 0.0
     for (key, map_) in sorted(input_map.items()):
         if method_cat:
             cat = input_cat.pop(key, None)
@@ -499,20 +505,9 @@ def transient_flux_calibration(inputfiles, filter_='850'):
             logger.info('Estimated variance of file %s: %f', map_, var)
             info['var'] = var
 
-            # Only add to sum if before the cut-off date.
-            if info['date'] <= date_cutoff:
-                inv_var_sum += 1.0 / var
-
         key = (info.pop('field_name'), info.pop('reductiontype'))
 
         inputs[key].append(info)
-
-    var_thresh = None
-    if inv_var_sum != 0.0:
-        var_coadd = 1.0 / inv_var_sum
-        # 9 is factor by which this method seems to underestimate the noise in the coadd
-        var_thresh = 9 * 11.111 * var_coadd
-        logger.info('Variance threshold: %f', var_thresh)
 
     if method_cat and input_cat:
         raise Exception('Catalogs {} have no matching image'.format(repr(list(input_cat.keys()))))
@@ -529,7 +524,10 @@ def transient_flux_calibration(inputfiles, filter_='850'):
         pub_cat_data = fits.getdata(pub_cat)
 
         # Wheech out noisy maps.
-        if var_thresh is not None:
+        if rms_thresh is not None:
+            var_thresh = math.pow(rms_thresh[field_name], 2.0)
+            logger.info('Variance threshold: %f', var_thresh)
+
             input_filtered = []
             for info in input_:
                 if info['var'] > var_thresh:
@@ -1085,6 +1083,12 @@ def get_filename_special_names():
 
 def get_filename_id_mapping():
     return os.path.join(data_dir, 'trigger', 'family_to_dij.json')
+
+
+def get_filename_rms_thresh(filter_):
+    filename = 'rms_thresh_{}.json'.format(filter_)
+
+    return os.path.join(data_dir, 'cal', filename)
 
 
 def get_filename_output(source, date, obsnum, filter_, reductiontype, aligned,
