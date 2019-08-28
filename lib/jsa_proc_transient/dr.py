@@ -402,7 +402,7 @@ def transient_flux_calibration(inputfiles, filter_='850'):
     date_cutoff = None
     if filter_ == '450':
         method_cat = False
-        date_cutoff = '20180501'
+        date_cutoff = '20190815'
     elif filter_ == '850':
         date_cutoff = '20170301'
 
