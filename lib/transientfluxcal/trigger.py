@@ -118,7 +118,7 @@ def extract_pixel_values(ndf, cat, filter_=850):
     return values
 
 
-def extract_central_var(ndf, filter_=850, halfwidth=100):
+def extract_central_var(ndf, filter_=850, halfwidth=200):
     prev_frame = ndf.wcs.Current
 
     # Select AXIS coordinates.
@@ -128,12 +128,12 @@ def extract_central_var(ndf, filter_=850, halfwidth=100):
     (x, y, z) = (a - 1).flatten().round().astype(int)
 
     subset = ndf.var[0,(y-halfwidth):(y+halfwidth),(x-halfwidth):(x+halfwidth)]
-    var_mean = subset.mean()
+    var_median = np.nanmedian(subset)
 
     # Restore the current frame.
     ndf.wcs.Current = prev_frame
 
-    return var_mean.item()
+    return var_median.item()
 
 
 def merge_yso_catalog(cat, disk_cat_file, prot_cat_file):
