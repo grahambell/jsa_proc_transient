@@ -55,20 +55,21 @@ class TransientCal(CustomJobRun):
         for filename in outputs:
             (basename, extension) = os.path.splitext(filename)
 
-            if extension == '.sdf':
+            if (extension == '.sdf') or (extension == '.fits'):
                 filename_edited = re.sub(
-                    '_crop_smooth_jypbm$', '_smooth', basename) + '.sdf'
-                logger.info('Storing SDF file "%s" as "%s"',
+                    '_crop_smooth_jypbm$', '_smooth', basename) + extension
+                logger.info('Storing SDF/FITS file "%s" as "%s"',
                             filename, filename_edited)
                 filename_trans = os.path.join(transdir, filename_edited)
                 shutil.copyfile(filename, filename_trans)
-                subprocess.check_call(
-                    [
-                        '/bin/gzip',
-                        '--best',
-                        filename_trans,
-                    ],
-                    shell=False)
+                if extension == '.sdf':
+                    subprocess.check_call(
+                        [
+                            '/bin/gzip',
+                            '--best',
+                            filename_trans,
+                        ],
+                        shell=False)
 
             elif extension == '.txt':
                 logger.info('Storing text file "%s"', filename)

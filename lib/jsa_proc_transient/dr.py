@@ -631,7 +631,9 @@ def transient_flux_calibration(inputfiles, filter_='850'):
 
             maps_cal.append(map_cal)
             maps_smooth.append(map_smooth)
-            output_files.extend([map_cal, map_smooth])
+            output_files.extend([
+                map_cal, convert_to_fits(map_cal),
+                map_smooth, convert_to_fits(map_smooth)])
 
             observations_calibrated.append(observation)
             valid_calibration_factors.append(calibration_factor)
@@ -661,12 +663,14 @@ def transient_flux_calibration(inputfiles, filter_='850'):
             field_name, filter_, survey_code, reductiontype)
         create_coadded_map(maps_cal, coadd_cal)
         output_files.append(coadd_cal)
+        output_files.append(convert_to_fits(coadd_cal))
         output_files.extend(create_png_previews(coadd_cal))
 
         coadd_smooth = '{}_{}_{}{}_cal_smooth_coadd.sdf'.format(
             field_name, filter_, survey_code, reductiontype)
         create_coadded_map(maps_smooth, coadd_smooth)
         output_files.append(coadd_smooth)
+        output_files.append(convert_to_fits(coadd_smooth))
         output_files.extend(create_png_previews(coadd_smooth))
 
         # Begin "trigger" analysis -- starting with metadata table.
@@ -996,6 +1000,29 @@ def create_coadded_map(maps, filename):
         ],
         shell=False,
         stdout=sys.stderr)
+
+
+def convert_to_fits(filename):
+    logger.debug('Converting to FITS: %s', filename)
+    fitsfilename = filename[:-4] + '.fits'
+
+    sys.stderr.flush()
+    subprocess.check_call(
+        [
+            os.path.expandvars('$CONVERT_DIR/ndf2fits'),
+            'in={}'.format(filename),
+            'out={}'.format(fitsfilename),
+            'encoding=FITS-WCS(CD)',
+            'axisorder=copy',
+            'profits',
+            'prohis=no',
+            'provenance=none',
+            'comp=DV',
+        ],
+        shell=False,
+        stdout=sys.stderr)
+
+    return fitsfilename
 
 
 def safe_object_name(name):
