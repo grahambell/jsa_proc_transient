@@ -158,7 +158,9 @@ def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
     is_gbs = False
     survey_code = None
     project = header['PROJECT']
-    if (project == 'M16AL001') or re.match('M\d\d[AB]EC30', project):
+    if ((project == 'M16AL001')
+            or (project == 'M20AL007')
+            or re.match('M\d\d[AB]EC30', project)):
         field_name = source
     elif project.startswith('MJLSG'):
         is_gbs = True

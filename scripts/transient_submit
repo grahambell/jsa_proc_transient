@@ -67,7 +67,7 @@ elsif (defined $pi_project) {
     $priority = 100;
 }
 else {
-    @projects = qw/M16AL001/;
+    @projects = qw/M16AL001 M20AL007/;
     @reductions = qw/R1 R2 R3 R4/;
     $priority = 100;
     %reduction_priority = (

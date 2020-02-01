@@ -27,7 +27,7 @@ else {
     @reductions = qw/R3/;
 }
 
-my @projects = qw/M16AL001 M16BEC30/;
+my @projects = qw/M16AL001 M16BEC30 M20AL007/;
 
 my $taco_py3 = new Alien::Taco(lang => 'python3');
 $taco_py3->import_module('sys');
