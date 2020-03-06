@@ -14,7 +14,7 @@ use JSA::Submission qw/
     %BAD_OBSIDSS %JUNK_OBSIDSS
     echo_messages find_observations
     log_message prepare_archive_db write_log_file/;
-use JSA::Proc qw/add_jsa_proc_jobs create_obsinfo_hash/;
+use JSA::Proc qw/add_jsa_proc_jobs/;
 use OMP::Info::Obs;
 use OMP::Constants qw/:obs/;
 
@@ -125,8 +125,8 @@ foreach my $project (@projects) {
         }
 
         my @files = ();
-        my @obsinfo = ();
         my @offset_args = ();
+        my @obsidsss = ();
 
         for my $subsys ($obs->subsystems()) {
             my @all_obsidss = $subsys->obsidss;
@@ -163,7 +163,7 @@ foreach my $project (@projects) {
                                 '--ddec', $offset_radec->[1]);
             }
 
-            push @obsinfo, create_obsinfo_hash($obs, $subsyshdr);
+            push @obsidsss, $obsidss;
 
             push @files, map {basename($_)} $subsys->filename();
         }
@@ -176,10 +176,6 @@ foreach my $project (@projects) {
                                 . "-" . $reduction
                                 . $tag_extra;
 
-                foreach my $obsinfo (@obsinfo) {
-                    $obsinfo->{'association'} = $tag;
-                }
-
                 my $params = $reduction;
 
                 if (@extra_args) {
@@ -191,7 +187,7 @@ foreach my $project (@projects) {
                     task => $task,
                     drparams => $params,
                     files => \@files,
-                    obsinfolist => \@obsinfo,
+                    obsid_subsysnr_list => \@obsidsss,
                 };
             }
         }
