@@ -45,6 +45,8 @@ $taco->call_function('logging.basicConfig',
 
 $taco->import_module('jsa_proc.config', args => ['get_database']);
 $taco->import_module('jsa_proc.submit.update', args => ['add_upd_del_job']);
+$taco->import_module('jsa_proc.db.db', args => ['JSAProcObs']);
+my @obsfields = $taco->get_class_attribute('JSAProcObs', '_fields');
 my $db = $taco->call_function('get_database');
 
 my @jobs = $db->call_method('find_jobs', kwargs => {task => $task_parent});
@@ -69,10 +71,11 @@ JOB: foreach my $job (@jobs) {
 
     my %sources = ();
     foreach my $obs (@obs) {
-        my $project = $obs->[11];
+        my %obs = to_hash(\@obsfields, $obs);
+        my $project = $obs{'project'};
         next JOB unless grep {$_ eq $project} @projects;
 
-        my $source = $safe_object_name->($obs->[14]);
+        my $source = $safe_object_name->($obs{'sourcename'});
 
         $sources{$source} ++;
     }
@@ -108,4 +111,10 @@ while (my ($reduction, $source_jobs) = each %reduction_source_jobs) {
             });
         }
     }
+}
+
+sub to_hash {
+    my $keys = shift;
+    my $vals = shift;
+    return map {$keys->[$_], $vals->[$_]} 0 .. $#$keys;
 }
