@@ -7,12 +7,13 @@ use Getopt::Long;
 use Alien::Taco;
 use FindBin;
 
-my ($dry_run, $reduction_str);
+my ($dry_run, $reduction_str, $verbose);
 
 die 'Could not process options'
     unless GetOptions(
         'dry-run' => \$dry_run,
         'reduction=s' => \$reduction_str,
+        'verbose' => \$verbose,
     );
 
 my $task_parent = 'lap-transient';
@@ -56,6 +57,7 @@ my %reduction_source_jobs = map {$_ => {}} @reductions;
 JOB: foreach my $job (@jobs) {
     my ($id, $tag, $state, undef, undef, undef, undef, undef) = @$job;
     next if $state eq 'E';
+    print "Considering job $id tag $tag\n" if $verbose;
 
     my %reductions = ();
     foreach my $reduction (@reductions) {
@@ -73,9 +75,11 @@ JOB: foreach my $job (@jobs) {
     foreach my $obs (@obs) {
         my %obs = to_hash(\@obsfields, $obs);
         my $project = $obs{'project'};
+        print "    Project: $project\n" if $verbose;
         next JOB unless grep {$_ eq $project} @projects;
 
         my $source = $safe_object_name->($obs{'sourcename'});
+        print "    Source $source\n" if $verbose;
 
         $sources{$source} ++;
     }
