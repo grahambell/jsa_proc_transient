@@ -110,7 +110,8 @@ def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat,
         output_files.extend(transient_analysis_subsystem(
             subsystems[850], reductiontype, '850', offsetsfile,
             install_catalog_as_ref=as_ref_cat,
-            dimmconfig=dimmconfig_850, is_kevin=is_kevin))
+            dimmconfig=dimmconfig_850, is_kevin=is_kevin,
+            mask_suffix=mask_suffix))
 
     elif offsetsfile is None:
         raise Exception('No 850um data files or fixed offsets given')
@@ -123,8 +124,9 @@ def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat,
         logger.debug('Performing 450um analysis')
         output_files.extend(transient_analysis_subsystem(
             subsystems[450], reductiontype, '450', offsetsfile,
-            expect_missing_catalog=no_450_cat,
-            dimmconfig=dimmconfig_450, is_kevin=is_kevin))
+            expect_missing_catalog=True, #no_450_cat,
+            dimmconfig=dimmconfig_450, is_kevin=is_kevin,
+            mask_suffix=mask_suffix))
 
     return output_files
 
@@ -132,7 +134,8 @@ def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat,
 def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
                                  offsetsfile, expect_missing_catalog=False,
                                  install_catalog_as_ref=False,
-                                 dimmconfig=None, is_kevin=False):
+                                 dimmconfig=None, is_kevin=False,
+                                 mask_suffix=None):
     """
     Take in a list of input files from one subsystem of a single observation
     and the reduction type (e.g. 'R1', 'R2' etc).
