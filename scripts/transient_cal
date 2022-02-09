@@ -61,8 +61,19 @@ class TransientCal(CustomJobRun):
                 logger.info('Storing SDF/FITS file "%s" as "%s"',
                             filename, filename_edited)
                 filename_trans = os.path.join(transdir, filename_edited)
-                shutil.copyfile(filename, filename_trans)
-                if extension == '.sdf':
+                if extension != '.sdf':
+                    shutil.copyfile(filename, filename_trans)
+                else:
+                    subprocess.check_call(
+                        [
+                            os.path.join(
+                                os.environ['STARLINK_DIR'],
+                                'bin', 'h5repack'),
+                            '-i', filename,
+                            '-o', filename_trans,
+                            '-f', 'NONE',
+                        ],
+                        shell=False)
                     subprocess.check_call(
                         [
                             '/bin/gzip',

@@ -72,7 +72,16 @@ class TransientRun(CustomJobRun):
                 filename_edited = re.sub(
                     '_cal$', '', base_name) + '.sdf'
                 filename_trans = os.path.join(transdir, filename_edited)
-                shutil.copyfile(filename, filename_trans)
+                subprocess.check_call(
+                    [
+                        os.path.join(
+                            os.environ['STARLINK_DIR'],
+                            'bin', 'h5repack'),
+                        '-i', filename,
+                        '-o', filename_trans,
+                        '-f', 'NONE',
+                    ],
+                    shell=False)
                 if not args['--nozip']:
                     subprocess.check_call(
                         [
