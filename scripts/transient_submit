@@ -15,6 +15,7 @@ use JSA::Submission qw/
     echo_messages find_observations
     log_message prepare_archive_db write_log_file/;
 use JSA::Proc qw/add_jsa_proc_jobs/;
+use OMP::DB::Backend;
 use OMP::Info::Obs;
 use OMP::Constants qw/:obs/;
 
@@ -100,12 +101,15 @@ die 'UT date not specified' unless defined $ut;
 
 echo_messages(1);
 
-prepare_archive_db();
+my $db = OMP::DB::Backend->new();
+my $arcdb = prepare_archive_db();
 
 foreach my $project (@projects) {
     # Priority used here only for logging.
     my ($mode, $grp) = find_observations(
-        $ut, $project, $priority, 'transient_submit');
+        $arcdb, $ut, $project, $priority,
+        'transient_submit',
+        DB => $db);
 
     if (scalar(@{$grp->obs}) == 0) {
         log_message("No observations were retrieved from the database.\n");
