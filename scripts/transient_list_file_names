@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+
+"""
+transient_list_file_names - List expected data file names
+
+Given an object name, list the file names which the processing
+system expects to find.
+
+Usage:
+    transient_list_file_names <object>
+"""
+
+from __future__ import absolute_import, division, print_function
+
+import os
+import sys
+
+# Add relative library directory to path.
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.dirname(sys.argv[0])), 'lib'))
+
+from jsa_proc_transient.dr import transient_list_file_names
+
+if __name__ == '__main__':
+    transient_list_file_names(sys.argv[1])

@@ -131,6 +131,37 @@ def transient_analysis(inputfiles, reductiontype, no_450_cat, as_ref_cat,
     return output_files
 
 
+def transient_list_file_names(raw_source):
+    """
+    Print out a list of file names which we expect to use
+    for the given object name.
+    """
+
+    source = safe_object_name(raw_source)
+    field_name = source
+
+    for reductiontype in ['R1', 'R2', 'R3', 'R4']:
+        print('{}:'.format(reductiontype))
+
+        for filter_ in ['850', '450']:
+            print('    {}:'.format(filter_))
+
+            mask_reductiontype = maskdict.get(reductiontype)
+            if mask_reductiontype is not None:
+                mask = get_filename_mask(
+                    source, filter_, mask_reductiontype, False, suffix=None)
+                print('        mask: {}'.format(os.path.basename(mask)))
+
+            else:
+                reference = get_filename_reference(field_name, filter_)
+                print('        reference: {}'.format(os.path.basename(reference)))
+
+            refcat = get_filename_ref_cat(field_name, filter_, reductiontype)
+            print('        catalog: {}'.format(os.path.basename(refcat)))
+
+        print('')
+
+
 def transient_analysis_subsystem(inputfiles, reductiontype, filter_,
                                  offsetsfile, expect_missing_catalog=False,
                                  install_catalog_as_ref=False,
