@@ -755,7 +755,9 @@ def transient_flux_calibration(inputfiles, filter_='850'):
                 filter_=filter_,
                 special_names=special_names,
                 calibration_ids=good_sources,
-                calibration_id_mapping=(None if family_data_mapping is None
+                calibration_id_mapping=(None
+                    if family_data_mapping is None
+                    or field_name not in family_data_mapping
                     else family_data_mapping[field_name]),
                 lightcurve_prefix='{}_{}_{}{}'.format(
                     field_name, filter_, survey_code, reductiontype))
