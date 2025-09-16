@@ -113,7 +113,12 @@ def extract_pixel_values(ndf, cat, filter_=850):
 
         # Ignore 'z' axis value (from filter_) and assume we have a 2D
         # map with a size of 1 in 'z'.
-        values.append(ndf.data[0, y, x].item())
+        try:
+            value = ndf.data[0, y, x].item()
+        except IndexError:
+            value = 0.0
+
+        values.append(value)
 
     return values
 
