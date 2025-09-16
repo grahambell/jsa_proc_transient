@@ -436,12 +436,8 @@ def transient_flux_calibration(inputfiles, filter_='850'):
 
     # Determine calibration "method" based on filter.
     method_cat = True
-    date_cutoff = None
     if filter_ == '450':
         method_cat = False
-        date_cutoff = '20190815'
-    elif filter_ == '850':
-        date_cutoff = '20170301'
 
     # Read "family" file.
     with open(get_filename_cal_family(filter_), 'r') as f:
@@ -551,8 +547,20 @@ def transient_flux_calibration(inputfiles, filter_='850'):
     for (key, input_) in inputs.items():
         (field_name, reductiontype) = key
 
+        # Determine field/filter-specific parameters.
+        new_fields = ('DR21_C', 'DR21_N', 'DR21_S', 'M17', 'M17SWEX', 'S255')
+        pub_cat_pub = None
+        if field_name in (new_fields):
+            date_cutoff = '20250915'
+            pub_cat_pub = 'newreg'
+        else:
+            if filter_ == '450':
+                date_cutoff = '20190815'
+            else:
+                date_cutoff = '20170301'
+
         # Get published catalog.
-        pub_cat = get_filename_pub_cat(field_name, filter_)
+        pub_cat = get_filename_pub_cat(field_name, filter_, pub=pub_cat_pub)
         if not os.path.exists(pub_cat):
             raise Exception('Published catalog "{}" not found'.format(pub_cat))
         pub_cat = shutil.copy(pub_cat, '.')
@@ -1117,6 +1125,13 @@ def get_filename_pub_cat(source, filter_, pub=None):
         cat_dir = 'cat_stm_450'
         suffix = '20190815'
         extra = '_450'
+    elif pub == 'newreg':
+        cat_dir = 'cat_stm_newreg'
+        suffix = '20220201'
+        if filter_ == '850':
+            extra = '_850'
+        else:
+            extra = '_450'
     else:
         raise Exception('Unknown publication "{}"'.format(pub))
 
